@@ -94,6 +94,30 @@
                     <target>1.8</target>
                 </configuration>
             </plugin>
+        <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>1.2.1</version>
+            <executions>            
+                <!-- mvn -pl Backtester exec:exec@Backtester -->
+                <execution>
+                    <id>Backtester</id>
+                    <goals>
+                        <goal>exec</goal>
+                    </goals>
+                    <configuration>
+                        <executable>java</executable>
+                        <arguments>
+                            <argument>-classpath</argument>
+                            <classpath />
+                            <argument>com.aquarians.backtester.Application</argument>
+                            <argument>config.properties</argument>
+                        </arguments>
+                        <workingDirectory>${project.basedir}/src/main/resources/backtester</workingDirectory>
+                    </configuration>
+                </execution>
+            </executions>
+        </plugin> 
         </plugins>
     </build>
 
