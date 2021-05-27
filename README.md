@@ -7,3 +7,6 @@ git clone https://github.com/aquarians/Public.git
 cd Public/Aquarians  
 mvn package  
 mvn -pl Backtester exec:exec@Backtester  
+
+# Picture of running app
+![](aquarians.jpg)
