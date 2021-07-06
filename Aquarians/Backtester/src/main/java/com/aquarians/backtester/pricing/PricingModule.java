@@ -210,7 +210,82 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         double average = error.totalError / Math.max(1, error.errorsCount);
         double percent = (0.0 + error.errorsCount) / Math.max(1, error.pricesCount);
         double weighted = average * percent;
-        logger.debug("MODELFIT underlier=" + underlier.code + " day=" + today + " err=" + Application.DOUBLE_DIGIT_FORMAT.format(weighted * 100.0));
+
+        Ref<Integer> liquidity = new Ref<>(0);
+        Double granularity = computeGranularity(liquidity);
+        if (null == granularity) {
+            granularity = 100.0; // infinite
+        }
+
+        logger.debug("MODELFIT underlier=" + underlier.code + " day=" + today +
+                " err=" + Application.DOUBLE_DIGIT_FORMAT.format(weighted * 100.0) +
+                " liquidity=" + liquidity.value +
+                " granularity=" + Application.DOUBLE_DIGIT_FORMAT.format(granularity));
+        logger.debug("MODELFITCSV," + underlier.code + "," +
+                today + "," +
+                Application.DOUBLE_DIGIT_FORMAT.format(weighted * 100.0) + "," +
+                liquidity.value + "," +
+                Application.DOUBLE_DIGIT_FORMAT.format(granularity));
+    }
+
+    private Double computeGranularity(Ref<Integer> liquidity) {
+        OptionTerm term = findClosestTerm(Util.TRADING_DAYS_IN_MONTH);
+        if (null == term) {
+            return null;
+        }
+
+        // Find smallest distance between strikes
+        Double minIncrement = null;
+        Double prevStrike = null;
+        for (Map.Entry<Double, OptionPair> entry : term.strikes.entrySet()) {
+            Double currStrike = entry.getKey();
+
+            if (prevStrike != null) {
+                double ds = currStrike - prevStrike;
+                if ((null == minIncrement) || (ds < minIncrement)) {
+                    minIncrement = ds;
+                }
+            }
+
+            prevStrike = currStrike;
+        }
+
+        // How many such strikes
+        prevStrike = null;
+        for (Map.Entry<Double, OptionPair> entry : term.strikes.entrySet()) {
+            Double currStrike = entry.getKey();
+
+            if (prevStrike != null) {
+                double ds = currStrike - prevStrike;
+                if (Math.abs(ds - minIncrement) < Util.ZERO) {
+                    liquidity.value++;
+                }
+            }
+
+            prevStrike = currStrike;
+        }
+
+        Double spot = getMarketSpotPrice();
+        if (null == spot) {
+            return null;
+        }
+
+        PricingModel model = getPricingModel();
+        if (null == model) {
+            return null;
+        }
+
+        Double vol = model.getVolatility();
+        if (null == vol) {
+            return null;
+        }
+
+        // Convert to standard deviations
+        double mean = -vol * vol * 0.5 * term.yf;
+        double dev = vol * Math.sqrt(term.yf);
+        double ret = Math.log((spot + minIncrement) / spot);
+        double std = (ret - mean) / dev;
+        return std;
     }
 
     public TreeMap<Day, OptionTerm> getOptionTerms() {
@@ -296,6 +371,20 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
 
     public Instrument getStock() {
         return stock;
+    }
+
+    OptionTerm findClosestTerm(int maturity) {
+        Integer minDistance = null;
+        OptionTerm selectedTerm = null;
+        for (Map.Entry<Day, OptionTerm> entry : optionTerms.entrySet()) {
+            OptionTerm term = entry.getValue();
+            int distance = Math.abs(term.daysToExpiry - maturity);
+            if ((null == minDistance) || (distance < minDistance)) {
+                minDistance = distance;
+                selectedTerm = entry.getValue();
+            }
+        }
+        return selectedTerm;
     }
 
 }

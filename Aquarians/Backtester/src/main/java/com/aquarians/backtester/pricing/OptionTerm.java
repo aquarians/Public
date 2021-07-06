@@ -40,7 +40,7 @@ public class OptionTerm implements Comparable<OptionTerm> {
     public final Day maturity;
     public final int daysToExpiry;
     public final double yf;
-    private TreeMap<Double, OptionPair> strikes = new TreeMap<>();
+    public TreeMap<Double, OptionPair> strikes = new TreeMap<>();
 
     public OptionTerm(Day today, Day maturity) {
         this.maturity = maturity;

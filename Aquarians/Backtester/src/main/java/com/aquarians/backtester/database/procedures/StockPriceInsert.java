@@ -65,6 +65,10 @@ public class StockPriceInsert extends DbStatement {
         setLong( 8, volume);
     }
 
+    public void execute(Long underlier, Day day, double price) {
+        execute(underlier, day, price, price, price, price, price, 0);
+    }
+
     public void execute(
             Long underlier,
             Day day,
