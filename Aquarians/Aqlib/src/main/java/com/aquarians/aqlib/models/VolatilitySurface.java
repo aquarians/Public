@@ -161,6 +161,7 @@ public class VolatilitySurface implements Volatility {
     public static final class StrikeVols extends TreeMap<Double, Double> {
 
         public Double forward;
+        public Double interest;
 
         public StrikeVols() {}
 

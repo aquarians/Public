@@ -25,6 +25,7 @@
 package com.aquarians.backtester.pricing;
 
 import com.aquarians.aqlib.*;
+import com.aquarians.aqlib.models.BlackScholes;
 import com.aquarians.aqlib.models.PricingResult;
 
 import java.util.ArrayList;
@@ -244,13 +245,9 @@ public class OptionTerm implements Comparable<OptionTerm> {
         return prev;
     }
 
-    private static void computeModelError(PricingModel model, PricingModule.ModelError error, Instrument instrument) {
+    private void computeModelError(PricingModel model, Ref<Double> totalError, double tolerance, Instrument instrument) {
         if (null == instrument) {
             return;
-        }
-
-        if ((null != instrument.getBidPrice()) || (null != instrument.getAskPrice())) {
-            error.pricesCount++;
         }
 
         PricingResult result = model.price(instrument);
@@ -263,25 +260,33 @@ public class OptionTerm implements Comparable<OptionTerm> {
             return;
         }
 
-        Double absolute = null;
+        Double error = null;
         if ((null != instrument.getBidPrice()) && (result.price < instrument.getBidPrice())) {
-            absolute = instrument.getBidPrice() - result.price;
+            error = instrument.getBidPrice() - result.price;
         } else if ((null != instrument.getAskPrice()) && (result.price > instrument.getAskPrice())) {
-            absolute = result.price - instrument.getAskPrice();
+            error = result.price - instrument.getAskPrice();
         } else {
             return;
         }
 
-        double relative = absolute / spot;
-        error.totalError += relative;
-        error.errorsCount++;
+        if (tolerance > 0.0) {
+            // Price a theoretical ATM option
+            Instrument atmOption = new Instrument(Instrument.Type.OPTION, null, true, maturity, spot);
+            PricingResult pricing = model.price(atmOption);
+            // Ignore error if smaller than tolerance threshold
+            if ((pricing.pnlDev != null) && (error < tolerance * pricing.pnlDev)) {
+                return;
+            }
+        }
+
+        totalError.value += error;
     }
 
-    public void computeModelError(PricingModel model, PricingModule.ModelError error) {
+    public void computeModelError(PricingModel model, Ref<Double> totalError, double tolerance) {
         for (Map.Entry<Double, OptionPair> entry : strikes.entrySet()) {
             OptionPair pair = entry.getValue();
-            computeModelError(model, error, pair.put);
-            computeModelError(model, error, pair.call);
+            computeModelError(model, totalError, tolerance, pair.put);
+            computeModelError(model, totalError, tolerance, pair.call);
         }
     }
 
@@ -318,5 +323,51 @@ public class OptionTerm implements Comparable<OptionTerm> {
         }
 
         return bestOption;
+    }
+
+    private static final class ParityForwardFinder {
+        Double forward = null;
+        Double min_distance = null;
+
+        void process(Instrument call, Instrument put, Double strike) {
+            Double call_price = (call != null) ? call.getPrice() : null;
+            Double put_price = (put != null) ? put.getPrice() : null;
+            if ((null == call_price) || (null == put_price)) {
+                return;
+            }
+
+            double distance = Math.abs(call_price - put_price);
+            if ((null == min_distance) || (distance < min_distance)) {
+                min_distance = distance;
+                forward = call_price - put_price + strike; // put-call parity
+            }
+        }
+    }
+
+    public Double computeParityForwardPrice() {
+        // Find strike with call and put closest in value
+        List<OptionPair> pairs = new ArrayList<>(this.strikes.values());
+
+        // First try the same strike (if both call and put liquidity is available)
+        ParityForwardFinder finder = new ParityForwardFinder();
+        for (OptionPair pair : pairs) {
+            finder.process(pair.call, pair.put, pair.strike);
+        }
+        if (finder.forward != null) {
+            return finder.forward;
+        }
+
+        // Try adjacent strikes
+        finder.min_distance = null;
+        OptionPair prev_pair = null;
+        for (OptionPair curr_pair : pairs) {
+            if (prev_pair != null) {
+                double strike = (curr_pair.strike + prev_pair.strike) / 2.0;
+                finder.process(curr_pair.call, prev_pair.put, strike);
+                finder.process(prev_pair.call, curr_pair.put, strike);
+            }
+            prev_pair = curr_pair;
+        }
+        return finder.forward;
     }
 }

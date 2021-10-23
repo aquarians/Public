@@ -376,7 +376,7 @@ public class Util {
         return res;
     }
 
-    // S <= U
+    // When buying the call and selling the put, parity relationship dictates spot being lower than an upper bound
     public static Double getParitySpotUpperBound(Instrument call, Instrument put) {
         if ((null == call) || (null == put)) {
             return null;
@@ -386,7 +386,9 @@ public class Util {
             return null;
         }
 
+        // Buy the call
         Double cp = call.getAskPrice();
+        // Sell the put
         Double pp = put.getBidPrice();
         if ((null == cp) || (null == pp)) {
             return null;
@@ -396,7 +398,7 @@ public class Util {
         return u;
     }
 
-    // S >= L
+    // When selling the call and buying the put, parity relationship dictates spot being higher than a lower bound
     public static Double getParitySpotLowerBound(Instrument call, Instrument put) {
         if ((null == call) || (null == put)) {
             return null;
@@ -406,7 +408,9 @@ public class Util {
             return null;
         }
 
+        // Sell the call
         Double cp = call.getBidPrice();
+        // Buy the put
         Double pp = put.getAskPrice();
         if ((null == cp) || (null == pp)) {
             return null;

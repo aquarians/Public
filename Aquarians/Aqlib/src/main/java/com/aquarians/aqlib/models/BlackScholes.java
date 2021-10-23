@@ -121,7 +121,7 @@ public class BlackScholes {
 
         double value = 0.0;
         if (vsqrt < Util.ZERO) {
-            // Intrisic value
+            // Intrinsic value
             value = valueAtExpiration();
         } else {
             double d1 = (Math.log(f / x) + (0.5 * v * v) * t) / vsqrt;
@@ -213,6 +213,7 @@ public class BlackScholes {
         return strikePrice;
     }
 
+    // https://www.glynholton.com/notes/black_1976/
     public double analyticDelta() {
         if (timeToExpiration < Util.ZERO) {
             if (isCall) {
@@ -227,11 +228,22 @@ public class BlackScholes {
         double t = timeToExpiration;
         double r = interestRate;
         double q = dividendYield;
+        double f = s * Math.exp((r - q) * t);
         double v = volatility;
         double vsqrt = v * Math.sqrt(t);
-        double d1 = (Math.log(s / x) + (r - q + 0.5 * v * v) * t) / vsqrt;
+        double d1 = 0.0;
+        if (isBlack) {
+            d1 = (Math.log(f / x) + (0.5 * v * v) * t) / vsqrt;
+        } else {
+            d1 = (Math.log(s / x) + (r - q + 0.5 * v * v) * t) / vsqrt;
+        }
         double sign = isCall ? +1.0 : -1.0;
-        double value = sign * Math.exp(-dividendYield * timeToExpiration) * ndist.cumulativeProbability(sign * d1);
+        double value = 0.0;
+        if (isBlack) {
+            value = sign * Math.exp(-r * t) * ndist.cumulativeProbability(sign * d1);
+        } else {
+            value = sign * Math.exp(-q * t) * ndist.cumulativeProbability(sign * d1);
+        }
         return value;
     }
 

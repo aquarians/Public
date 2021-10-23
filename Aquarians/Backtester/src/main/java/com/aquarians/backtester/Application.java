@@ -249,4 +249,52 @@ public class Application {
         }
     }
 
+    private static final class LiquidityRecord implements Comparable<LiquidityRecord> {
+        String code;
+        int count;
+        double liquidity;
+        double granularity;
+        double error;
+
+        @Override
+        public int compareTo(LiquidityRecord that) {
+            return Double.compare(this.error, that.error);
+        }
+    }
+
+    private Map<String, LiquidityRecord> records = new TreeMap<>();
+
+    public void onEndOfDay() {
+        List<LiquidityRecord> records = new ArrayList<>(this.records.values());
+        Collections.sort(records);
+        for (LiquidityRecord record : records) {
+            logger.debug("TRACE code=" + record.code + " error=" + Application.DOUBLE_DIGIT_FORMAT.format(record.error));
+        }
+    }
+
+    public void addLiquidity(String code, double liquidity, double granularity, double error) {
+        synchronized (lock) {
+            LiquidityRecord record = records.get(code);
+            if (null == record) {
+                record = new LiquidityRecord();
+                record.code = code;
+                record.count = 0;
+                record.liquidity = 0;
+                record.granularity = 0.0;
+                record.error = 0.0;
+                records.put(code, record);
+            }
+            record.count++;
+            record.liquidity += liquidity;
+            record.granularity += granularity;
+            record.error += error;
+
+            liquidity = record.liquidity / record.count;
+            granularity = record.granularity / record.count;
+            error = record.error / record.count;
+            logger.info("LIQUIDITY code=" + code + " liquidity=" + liquidity + " granularity=" + granularity + " error=" + error);
+            logger.info("LIQUIDITYCSV," + code + "," + liquidity + "," + granularity + "," + error);
+        }
+    }
+
 }

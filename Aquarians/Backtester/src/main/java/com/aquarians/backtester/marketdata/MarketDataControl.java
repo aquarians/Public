@@ -242,6 +242,9 @@ public class MarketDataControl {
 
             // Day ends for all underliers
             notifyMarketEvent(MarketEventListener.MarketEvent.EndOfDay);
+
+            // HACK!!
+            Application.getInstance().onEndOfDay();
         }
 
         if (currentDay.equals(endDay)) {

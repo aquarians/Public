@@ -50,6 +50,7 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
     private final DatabaseModule databaseModule;
     private final TreeMap<Day, OptionTerm> optionTerms = new TreeMap<>();
     private PricingModel.Type activeModel;
+    private final double tolerance;
     private List<PricingModel> pricingModels = new ArrayList<>();
     private Map<String, Instrument> instruments = new TreeMap<>();
 
@@ -64,6 +65,7 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         // Because we do multithreaded operations, each pricing module needs other modules of the same index
         databaseModule = (DatabaseModule) Application.getInstance().getModule(Application.buildModuleName(DatabaseModule.NAME, index));
         activeModel = PricingModel.Type.valueOf(Application.getInstance().getProperties().getProperty("Pricing.ActiveModel", PricingModel.Type.Market.name()));
+        tolerance = Double.parseDouble(Application.getInstance().getProperties().getProperty("Pricing.Tolerance", "0"));
 
         createPricingModels();
     }
@@ -189,27 +191,17 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         computeModelError();
     }
 
-    public static final class ModelError {
-        double totalError;
-        int pricesCount;
-        int errorsCount;
-    }
-
     private void computeModelError() {
         PricingModel model = getPricingModel();
         if (null == model) {
             return;
         }
 
-        ModelError error = new ModelError();
+        Ref<Double> totalError = new Ref<>(0.0);
         for (Map.Entry<Day, OptionTerm> entry : optionTerms.entrySet()) {
             OptionTerm term = entry.getValue();
-            term.computeModelError(model, error);
+            term.computeModelError(model, totalError, tolerance);
         }
-
-        double average = error.totalError / Math.max(1, error.errorsCount);
-        double percent = (0.0 + error.errorsCount) / Math.max(1, error.pricesCount);
-        double weighted = average * percent;
 
         Ref<Integer> liquidity = new Ref<>(0);
         Double granularity = computeGranularity(liquidity);
@@ -217,15 +209,22 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
             granularity = 100.0; // infinite
         }
 
+        // Express error relative to spot price
+        double error = totalError.value / model.getSpot();
+
         logger.debug("MODELFIT underlier=" + underlier.code + " day=" + today +
-                " err=" + Application.DOUBLE_DIGIT_FORMAT.format(weighted * 100.0) +
+                " err=" + Application.DOUBLE_DIGIT_FORMAT.format(error * 100.0) +
                 " liquidity=" + liquidity.value +
                 " granularity=" + Application.DOUBLE_DIGIT_FORMAT.format(granularity));
         logger.debug("MODELFITCSV," + underlier.code + "," +
                 today + "," +
-                Application.DOUBLE_DIGIT_FORMAT.format(weighted * 100.0) + "," +
+                Application.DOUBLE_DIGIT_FORMAT.format(error * 100.0) + "," +
                 liquidity.value + "," +
                 Application.DOUBLE_DIGIT_FORMAT.format(granularity));
+
+        if (liquidity.value > 0) {
+            Application.getInstance().addLiquidity(underlier.code, liquidity.value, granularity, error * 100.0);
+        }
     }
 
     private Double computeGranularity(Ref<Integer> liquidity) {
@@ -387,4 +386,7 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         return selectedTerm;
     }
 
+    public double getTolerance() {
+        return tolerance;
+    }
 }

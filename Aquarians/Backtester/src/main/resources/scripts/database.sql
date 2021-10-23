@@ -47,6 +47,20 @@ CREATE TABLE option_prices
 CREATE INDEX ix_option_prices_underlier_day ON option_prices(underlier, day);
 CREATE INDEX ix_option_prices_underlier ON option_prices(underlier);
 
+CREATE TABLE forward_terms
+(
+   underlier bigint NOT NULL,
+   day date NOT NULL,
+   maturity date NOT NULL,
+   forward double precision NULL, -- forward price
+   interest double precision NULL, -- interest rate
+
+   CONSTRAINT fk_forward_terms_underlier FOREIGN KEY(underlier) REFERENCES underliers
+);
+
+CREATE INDEX ix_forward_terms_underlier_day ON forward_terms(underlier, day);
+CREATE INDEX ix_forward_terms_underlier ON forward_terms(underlier);
+
 -- Cleanup
 --DROP TABLE option_prices;
 --DROP TABLE stock_prices;

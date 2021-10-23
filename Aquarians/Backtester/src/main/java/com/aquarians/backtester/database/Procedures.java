@@ -47,6 +47,7 @@ public class Procedures extends DbProcedures {
     public final OptionPricesDeleteAll optionPricesDeleteAll;
     public final StockSplitInsert stockSplitInsert;
     public final StockSplitsSelect stockSplitsSelect;
+    public final ForwardTermsSelect forwardTermsSelect;
 
     public Procedures(Connection connection) {
         super(connection);
@@ -65,5 +66,6 @@ public class Procedures extends DbProcedures {
         optionPricesDeleteAll = addProcedure(new OptionPricesDeleteAll(connection));
         stockSplitInsert = addProcedure(new StockSplitInsert(connection));
         stockSplitsSelect = addProcedure(new StockSplitsSelect(connection));
+        forwardTermsSelect = addProcedure(new ForwardTermsSelect(connection));
     }
 }

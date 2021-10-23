@@ -21,6 +21,7 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
     private Day today;
     private Double spotPrice;
     private final Integer volatilityRounding;
+    private int hedgeFrequency = Util.DEFAULT_HEDGE_FREQUENCY;
 
     public ImpliedVolatilityModel(PricingModule owner) {
         this.owner = owner;
@@ -59,10 +60,35 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
             forward = surface.getSpot();
         }
 
+        if (instrument.getType().equals(Instrument.Type.STOCK)) {
+            PricingResult result = new PricingResult(forward, 1.0);
+            result.pnlDev = 0.0;
+            result.day = today;
+            return result;
+        }
+
+        if (maturity < 1) {
+            double sign = instrument.isCall() ? 1.0 : -1.0;
+            double value = Math.max(sign * (forward - instrument.getStrike()), 0.0);
+            PricingResult result = new PricingResult(value, 0.0);
+            result.pnlDev = 0.0;
+            result.day = today;
+            return result;
+        }
+
         BlackScholes pricer = new BlackScholes(instrument.isCall(), forward, instrument.getStrike(), yf, interestRate, dividendYield, vol);
         double price = pricer.price();
         double delta = pricer.analyticDelta();
-        return new PricingResult(price, delta);
+        PricingResult result = new PricingResult(price, delta);
+
+        int hedges = maturity;
+        if (hedgeFrequency > 0) {
+            hedges = Math.max(1, maturity / hedgeFrequency);
+        }
+        result.pnlDev = pricer.theoreticalPnlDev(hedges);
+        result.day = today;
+
+        return result;
     }
 
     @Override
@@ -100,6 +126,9 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
                 continue;
             }
 
+            Double forward = spotPrice;
+            Double parityForward = term.computeParityForwardPrice();
+
             BlackScholes pricer = new BlackScholes(option.isCall(), spotPrice, pair.strike, term.yf, interestRate, dividendYield, 0.0);
             Double vol = pricer.impliedVolatility(price);
             if (null == vol) {
@@ -127,4 +156,11 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
         return surface.getVolatility(Util.TRADING_DAYS_IN_MONTH, surface.getSpot());
     }
 
+    public int getHedgeFrequency() {
+        return hedgeFrequency;
+    }
+
+    public void setHedgeFrequency(int hedgeFrequency) {
+        this.hedgeFrequency = hedgeFrequency;
+    }
 }
