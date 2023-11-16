@@ -48,6 +48,7 @@ public class Procedures extends DbProcedures {
     public final StockSplitInsert stockSplitInsert;
     public final StockSplitsSelect stockSplitsSelect;
     public final ForwardTermsSelect forwardTermsSelect;
+    public final StockPricesSelectMinMaxDate stockPricesSelectMinMaxDate;
 
     public Procedures(Connection connection) {
         super(connection);
@@ -67,5 +68,6 @@ public class Procedures extends DbProcedures {
         stockSplitInsert = addProcedure(new StockSplitInsert(connection));
         stockSplitsSelect = addProcedure(new StockSplitsSelect(connection));
         forwardTermsSelect = addProcedure(new ForwardTermsSelect(connection));
+        stockPricesSelectMinMaxDate = addProcedure(new StockPricesSelectMinMaxDate(connection));
     }
 }

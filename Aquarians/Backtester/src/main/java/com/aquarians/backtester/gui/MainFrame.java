@@ -44,6 +44,8 @@ public class MainFrame extends javax.swing.JFrame
 
     private static final String FILE_MENU_SAVE_LAYOUT = "Save Layout";
     private static final String VIEW_MENU_MARKET_DATA_CONTROL = "Market Data Control";
+
+    private static final String VIEW_MENU_STOCKS = "Stocks";
     private static final String VIEW_MENU_OPTIONS = "Options";
     private static final String VIEW_MENU_VOLATILITY = "Volatility";
     private static final String GUI_CONFIG = "GUI.Config";
@@ -127,6 +129,13 @@ public class MainFrame extends javax.swing.JFrame
         marketDataControlItem.addActionListener(this);
         menu.add(marketDataControlItem);
 
+        JMenuItem stocksItem = new JMenuItem(VIEW_MENU_STOCKS);
+        stocksItem.setMnemonic(KeyEvent.VK_S);
+        stocksItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, ActionEvent.ALT_MASK));
+        stocksItem.setActionCommand(VIEW_MENU_STOCKS);
+        stocksItem.addActionListener(this);
+        menu.add(stocksItem);
+
         JMenuItem optionTermsItem = new JMenuItem(VIEW_MENU_OPTIONS);
         optionTermsItem.setMnemonic(KeyEvent.VK_O);
         optionTermsItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, ActionEvent.ALT_MASK));
@@ -170,6 +179,8 @@ public class MainFrame extends javax.swing.JFrame
             fileSaveLayout();
         } else if (event.getActionCommand().equals(VIEW_MENU_MARKET_DATA_CONTROL)) {
             viewMarketDataControl();
+        } else if (event.getActionCommand().equals(VIEW_MENU_STOCKS)) {
+            viewStocks();
         } else if (event.getActionCommand().equals(VIEW_MENU_OPTIONS)) {
             viewOptionTerms();
         } else if (event.getActionCommand().equals(VIEW_MENU_VOLATILITY)) {
@@ -242,12 +253,20 @@ public class MainFrame extends javax.swing.JFrame
             return new OptionsFrame(this);
         } else if (name.equals(VolatilityFrame.NAME)) {
             return new VolatilityFrame(this);
+        } else if (name.equals(StocksFrame.NAME)) {
+            return new StocksFrame(this);
         }
         return null;
     }
 
     private void viewMarketDataControl() {
         MarketDataControlFrame frame = new MarketDataControlFrame(this);
+        frame.init();
+        desktopPane.add(frame);
+    }
+
+    private void viewStocks() {
+        StocksFrame frame = new StocksFrame(this);
         frame.init();
         desktopPane.add(frame);
     }
