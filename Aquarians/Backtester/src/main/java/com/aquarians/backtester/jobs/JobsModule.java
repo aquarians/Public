@@ -68,16 +68,18 @@ public class JobsModule implements ApplicationModule {
     }
 
     private Runnable createJob(String name) {
-        if (name.equals("ImportHistoricalStockPricesJob")) {
+        if (name.equals(ImportHistoricalStockPricesJob.class.getSimpleName())) {
             return new ImportHistoricalStockPricesJob(databaseModule);
-        } else if (name.equals("ImportHistoricalOptionPricesJob")) {
+        } else if (name.equals(ImportHistoricalOptionPricesJob.class.getSimpleName())) {
             return new ImportHistoricalOptionPricesJob(databaseModule);
-        } else if (name.equals("CurateUnderliersJob")) {
+        } else if (name.equals(CurateUnderliersJob.class.getSimpleName())) {
             return new CurateUnderliersJob(databaseModule);
-        } else if (name.equals("ImportStockSplitsJob")) {
+        } else if (name.equals(ImportStockSplitsJob.class.getSimpleName())) {
             return new ImportStockSplitsJob(databaseModule);
-        } else if (name.equals("GenerateTestDataJob")) {
+        } else if (name.equals(GenerateTestDataJob.class.getSimpleName())) {
             return new GenerateTestDataJob(databaseModule);
+        } else if (name.equals(ImportYahooStockPricesJob.class.getSimpleName())) {
+            return new ImportYahooStockPricesJob(databaseModule);
         }
 
         throw new RuntimeException("Unknown job: " + name);
