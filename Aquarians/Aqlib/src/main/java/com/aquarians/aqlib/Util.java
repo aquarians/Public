@@ -41,7 +41,9 @@ public class Util {
     public static final int TRADING_DAYS_IN_WEEK = 5;
     public static final int TRADING_DAYS_IN_MONTH = 20;
     public static final int DEFAULT_HEDGE_FREQUENCY = 1;
-    public static final int HEDGING_DISABLED = 0;
+    public static final DecimalFormat DOUBLE_DIGIT_FORMAT = new DecimalFormat("#0.00");
+    public static final DecimalFormat FOUR_DIGIT_FORMAT = new DecimalFormat("#0.0000");
+    public static final DecimalFormat SIX_DIGIT_FORMAT = new DecimalFormat("#0.000000");
 
     public static boolean safeEquals(Object left, Object right) {
         if ((null == left) || (null == right)) {
@@ -235,6 +237,41 @@ public class Util {
     }
 
     /**
+     * Given a discretized function y = f(x) given at discrete points, interpolates value at real x
+     * @param x argument x
+     * @param xs discretization of arguments: x0, x1, ... xN
+     * @param ys discretization of values: y0, y1, ... yN
+     * @return f(x)
+     */
+    public static double interpolate(double x, List<Double> xs, List<Double> ys) {
+        if (0 == xs.size()) {
+            return 0.0;
+        }
+
+        int posUp = Util.lowerBound(xs, x);
+        if (xs.size() == posUp) {
+            return ys.get(ys.size() - 1);
+        }
+
+        double xup = xs.get(posUp);
+        double yup = ys.get(posUp);
+        if (Util.doubleEquals(x, xup)) {
+            return yup;
+        }
+
+        // Interpolate
+        int posDown = posUp - 1;
+        if (posDown < 0) {
+            return yup;
+        }
+
+        double xdown = xs.get(posDown);
+        double ydown = ys.get(posDown);
+        double y = interpolate(xdown, ydown, xup, yup, x);
+        return y;
+    }
+
+    /**
      * Creates an {@code ArrayList} instance of given size initialized with given value.
      * @param size array size
      * @param value value to fill the array with
@@ -418,6 +455,29 @@ public class Util {
 
         double u = call.getStrike() + cp - pp;
         return u;
+    }
+
+    // Fits line y(x) = alpha + beta * x
+    public static void fitRegressionLine(Points points, Ref<Double> alpha, Ref<Double> beta) {
+        double ysum = 0.0;
+        double xsum = 0.0;
+        double xysum = 0.0;
+        double xxsum = 0.0;
+        for (int i = 0; i < points.size(); i++) {
+            double x = points.x(i);
+            double y = points.y(i);
+            xsum += x;
+            xxsum += x * x;
+            ysum += y;
+            xysum += x * y;
+        }
+
+        double n = Math.max(points.size(), 1);
+        beta.value = (n * xysum - xsum * ysum) / (n * xxsum - xsum * xsum);
+
+        double xavg = xsum / n;
+        double yavg = ysum / n;
+        alpha.value = yavg - beta.value * xavg;
     }
 
 }

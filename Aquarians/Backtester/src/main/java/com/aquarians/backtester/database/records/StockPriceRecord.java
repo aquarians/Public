@@ -27,6 +27,7 @@ package com.aquarians.backtester.database.records;
 import com.aquarians.aqlib.Day;
 import com.aquarians.aqlib.Util;
 import com.aquarians.aqlib.math.DefaultProbabilityFitter;
+import com.aquarians.aqlib.math.PriceRecord;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -102,5 +103,13 @@ public class StockPriceRecord implements Comparable<StockPriceRecord> {
     @Override
     public int compareTo(StockPriceRecord that) {
         return this.day.compareTo(that.day);
+    }
+
+    public static List<PriceRecord> toPriceRecords(List<StockPriceRecord> stocks) {
+        List<PriceRecord> prices = new ArrayList<>(stocks.size());
+        for (StockPriceRecord stock : stocks) {
+            prices.add(new PriceRecord(stock.day, stock.close));
+        }
+        return prices;
     }
 }

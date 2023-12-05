@@ -311,19 +311,19 @@ public class DefaultProbabilityFitter {
         return getX(index);
     }
 
-    public double bucketY(int index) {
+    public double pdfY(int index) {
         double dx = (max - min) / buckets.length;
         double dp = (0.0 + buckets[index]) / samples.size();
         double pdf = dp / dx;
         return pdf;
     }
 
-    public double bucketYHistogram(int index) {
+    public double bucketY(int index) {
         return buckets[index];
     }
 
-    // Computes the cumulative distribution function between [X_min, X_max]
-    public void compute(int count) {
+    // Computes the histogram of the random variable
+    public void computeHistogram(int count) {
         compute();
         buckets = new int[count + 1];
         for (int i = 0; i < count; ++i) {
@@ -332,9 +332,8 @@ public class DefaultProbabilityFitter {
         double dx = (max - min) / count;
         for (int i = 0; i < samples.size(); ++i) {
             double x = samples.get(i);
-            int bucket = (int)Math.round((x - min) / dx);
-            if ((bucket < 0) || (bucket > count))
-            {
+            int bucket = (int) Math.round((x - min) / dx);
+            if ((bucket < 0) || (bucket > count)) {
                 continue;
             }
 
@@ -626,32 +625,12 @@ public class DefaultProbabilityFitter {
         try {
             writer = new CsvFileWriter(file);
             for (int i = 0; i < bucketsSize(); i++) {
-                writer.write(Util.newArrayList(Double.toString(bucketX(i)), Double.toString(bucketY(i))));
+                writer.write(Util.newArrayList(Util.FOUR_DIGIT_FORMAT.format(bucketX(i)), Util.FOUR_DIGIT_FORMAT.format(bucketY(i))));
             }
         } finally {
             if (null != writer) {
                 writer.close();
             }
-        }
-    }
-
-    public void saveHistogram(String file) {
-        CsvFileWriter writer = null;
-        try {
-            writer = new CsvFileWriter(file);
-            for (int i = 0; i < bucketsSize(); i++) {
-                writer.write(Util.newArrayList(Double.toString(bucketX(i)), Double.toString(bucketYHistogram(i))));
-            }
-        } finally {
-            if (null != writer) {
-                writer.close();
-            }
-        }
-    }
-
-    public void print() {
-        for (int i = 0; i < bucketsSize(); i++) {
-            System.out.println(Double.toString(bucketX(i)) + ","  + Double.toString(bucketY(i)));
         }
     }
 
