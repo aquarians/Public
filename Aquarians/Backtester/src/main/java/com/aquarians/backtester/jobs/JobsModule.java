@@ -80,8 +80,8 @@ public class JobsModule implements ApplicationModule {
             return new GenerateTestDataJob(databaseModule);
         } else if (name.equals(ImportYahooStockPricesJob.class.getSimpleName())) {
             return new ImportYahooStockPricesJob(databaseModule);
-        } else if (name.equals(GeometricBrownianMotionOriginsJob.class.getSimpleName())) {
-            return new GeometricBrownianMotionOriginsJob(databaseModule);
+        } else if (name.equals(GeometricBrownianMotionStudyJob.class.getSimpleName())) {
+            return new GeometricBrownianMotionStudyJob(databaseModule);
         }
 
         throw new RuntimeException("Unknown job: " + name);

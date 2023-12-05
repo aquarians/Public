@@ -7,16 +7,16 @@ import com.aquarians.backtester.database.records.StockPriceRecord;
 
 import java.util.List;
 
-public class GeometricBrownianMotionOriginsJob implements Runnable {
+public class GeometricBrownianMotionStudyJob implements Runnable {
 
     private static org.apache.log4j.Logger logger =
-            org.apache.log4j.Logger.getLogger(GeometricBrownianMotionOriginsJob.class.getSimpleName());
+            org.apache.log4j.Logger.getLogger(GeometricBrownianMotionStudyJob.class.getSimpleName());
 
     private final DatabaseModule database;
 
     private static final int MAX_SAMPLING_DAYS = 32;
 
-    public GeometricBrownianMotionOriginsJob(DatabaseModule database) {
+    public GeometricBrownianMotionStudyJob(DatabaseModule database) {
         this.database = database;
     }
 
@@ -107,7 +107,7 @@ public class GeometricBrownianMotionOriginsJob implements Runnable {
 
     @Override
     public void run() {
-        String code = "N225";
+        String code = "SPY";
 
         // Histogram of daily returns
         //computeHistogram(code);
@@ -116,6 +116,6 @@ public class GeometricBrownianMotionOriginsJob implements Runnable {
         //computeParameter(code, samples -> samples.getDev() * samples.getDev());
 
         // Normal distribution mean
-        //computeParameter(code, samples -> samples.getMean());
+        computeParameter(code, samples -> samples.getMean());
     }
 }
