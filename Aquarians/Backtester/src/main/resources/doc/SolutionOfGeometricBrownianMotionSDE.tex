@@ -1,0 +1,142 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+
+\begin{document}
+
+\title{Solution of Geometric Brownian Motion SDE}
+\maketitle
+
+\section{The SDE}
+
+Geometric Brownian motion SDE:
+\begin{equation}
+  \begin{aligned}
+    \frac{dS(t)}{S(t)} & = \mu dt + \sigma \sqrt{dt} z \\
+      z & \sim \mathcal{N}(0,1)
+  \end{aligned}
+\end{equation}
+
+Raise to square:
+\begin{equation}
+  \begin{aligned}
+    {dS(t)}^2 & = {(\mu S(t) dt + \sigma S(t) \sqrt{dt} z)}^2 \\
+    & = {\mu}^2 {S(t)}^2 {dt}^2 + 2 \mu \sigma {S(t)}^2 dt \sqrt{dt} + {\sigma}^2 {S(t)}^2 {(\sqrt{dt})}^2 {z}^2
+  \end{aligned}
+\end{equation}
+
+When ${dt \to 0}$ we have $dt^2 = 0$ and $dt \sqrt{dt} = 0$. Also since $z \sim \mathcal{N}(0,1)$ one can verify that on average $z^2 = 1$.
+
+Therefore:
+\begin{equation}
+  {dS(t)}^2 = {\sigma}^2 {S(t)}^2 dt
+\end{equation}
+
+\section{Stochastic Integrals}
+
+Take the following integral:
+\begin{equation}
+  \begin{aligned}
+   I & = \int_{0}^{t} dW(t) \\
+     & = \int_{0}^{t} \sigma \sqrt{dt} z \\
+     z & \sim \mathcal{N}(0,1)
+  \end{aligned}
+\end{equation}
+
+Dividing the interval $\left[ 0, t \right]$ into $n \to \infty$ equal subintervals of equal size $dt$ we have:
+\begin{equation}
+  \begin{aligned}
+   I & = \sum_{i=0}^{n} \left( \sigma \sqrt{dt} z_{i} \right) \\
+     & = \sigma \sqrt{dt} \sum_{i=0}^{n} z_{i}
+  \end{aligned}
+\end{equation}
+
+Since we are adding $n$ normal distributed random variables of mean zero and variance $\sigma^2 dt$, their sum will be still a normal distributed random variable of mean zero and variance $n \sigma^2 dt$. But $n dt = t$ so finally we get the variance $\sigma^t t$ so the deviation $\sigma \sqrt{t}$. Therefore:
+
+\begin{equation}
+  \begin{aligned}
+   I & = W(t) \\
+   \int_{0}^{t} \sigma \sqrt{dt} z & = \sigma \sqrt{t} z \\
+     z & \sim \mathcal{N}(0,1)
+  \end{aligned}
+\end{equation}
+
+\section{The solution}
+
+Take the function $f(S, t) = \ln{S(t)}$. We have it's Taylor series expansion:
+
+\begin{equation}
+  \begin{aligned}
+    df(S, t) & \approx \frac{\partial f}{\partial t} dt + \frac{\partial f}{\partial S} dS + \frac{1}{2} \frac{{\partial}^2 f}{\partial t^2} {dt}^2 +
+               \frac{{\partial}^2 f}{\partial t \partial S} dt dS + \frac{1}{2} \frac{{\partial}^2 f}{\partial S^2} {dS}^2
+  \end{aligned}
+\end{equation}
+
+We then have the partial derivatives:
+\begin{equation}
+  \begin{aligned}
+    \frac{\partial \ln{S(t)}}{\partial t} & = 0 \\
+    \frac{\partial \ln{S(t)}}{\partial S} & = \frac{1}{S(t)} \\
+    \frac{{\partial}^2 \ln{S(t)}}{\partial t^2} & = 0 \\
+    \frac{{\partial}^2 \ln{S(t)}}{\partial S \partial t} & = 0 \\
+    \frac{{\partial}^2 \ln{S(t)}}{\partial S^2} & = - \frac{1}{{S(t)}^2}
+  \end{aligned}
+\end{equation}
+
+Replacing in the We Taylor series expansion we get:
+
+\begin{equation}
+  \begin{aligned}
+    d \left( \ln{S(t)} \right) & \approx \frac{1}{S(t)} dS(t) - \frac{1}{S(t)^2} {dS(t)}^2
+  \end{aligned}
+\end{equation}
+
+By equation (3) we then have:
+
+\begin{equation}
+  \begin{aligned}
+    d \left( \ln{S(t)} \right) & \approx \frac{dS(t)}{S(t)} - \frac{1}{2} \frac{{\sigma}^2 {S(t)}^2}{{S(t)}^2} dt \Leftrightarrow \\
+    d \left( \ln{S(t)} \right) & = \frac{dS(t)}{S(t)} - \frac{{\sigma}^2 }{2} dt
+  \end{aligned}
+\end{equation}
+
+Replacing from (1) $\frac{dS(t)}{S(t)}$ we get:
+
+\begin{equation}
+  \begin{aligned}
+    d \left( \ln{S(t)} \right) & = \mu dt + \sigma \sqrt{dt} z - \frac{{\sigma}^2 }{2} dt \Leftrightarrow \\
+    d \left( \ln{S(t)} \right) & = \left( \mu - \frac{{\sigma}^2 }{2} \right) dt + \sigma \sqrt{dt} z \\
+    d \left( \ln{S(t)} \right) & = \left( \mu - \frac{{\sigma}^2 }{2} \right) dt + \sigma dW(t) \\
+  \end{aligned}
+\end{equation}
+
+Where we have denoted the differential of the Weiner process $dW(t) \approx \sqrt{dt} z$.
+
+Integrating:
+\begin{equation}
+  \begin{aligned}
+    \int_{0}^{t} d \left( \ln{S(t)} \right) & = \int_{0}^{t} \left( \mu - \frac{{\sigma}^2 }{2} \right) dt + \int_{0}^{t} \sigma dW(t) \Rightarrow \\
+    \ln{S(t)} \Big|_{0}^{t} & = \left( \mu - \frac{{\sigma}^2 }{2} \right) t \Big|_{0}^{t} + \sigma W(t) \Big|_{0}^{t} \Leftrightarrow \\
+    \ln{S(t)} - \ln{S(0)} & = \left( \mu - \frac{{\sigma}^2 }{2} \right) t + \sigma W(t) \Leftrightarrow \\
+    \ln{\frac{S(t)}{S(0)}} & = \left( \mu - \frac{{\sigma}^2 }{2} \right) t + \sigma \sqrt{t} z \\
+    z & \sim \mathcal{N}(0,1)
+  \end{aligned}
+\end{equation}
+
+Taking the exponential:
+\begin{equation}
+  \begin{aligned}
+    e^{\ln{\frac{S(t)}{S(0)}}} & = e^{\left( \mu - \frac{{\sigma}^2 }{2} \right) t + \sigma \sqrt{t} z} \Rightarrow \\
+    \frac{S(t)}{S(0)} & = e^{\left( \mu - \frac{{\sigma}^2 }{2} \right) t + \sigma \sqrt{t} z}
+  \end{aligned}
+\end{equation}
+
+Which finally gives the solution:
+\begin{equation}
+  \begin{aligned}
+    S(t) & = S(0) e^{\left( \mu - \frac{{\sigma}^2 }{2} \right) t + \sigma \sqrt{t} z} \\
+    z & \sim \mathcal{N}(0,1)
+  \end{aligned}
+\end{equation}
+
+\end{document}
