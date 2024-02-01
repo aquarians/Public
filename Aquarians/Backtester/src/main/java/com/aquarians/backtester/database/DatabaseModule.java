@@ -59,7 +59,8 @@ public class DatabaseModule implements ApplicationModule {
         try {
             connection = DriverManager.getConnection(url, user, password);
         } catch (Exception ex) {
-            throw new RuntimeException(ex.getMessage(), ex);
+            logger.warn("Database connection failed. Database-related functionality won't be available", ex);
+            return;
         }
 
         procedures = new Procedures(connection);
@@ -69,13 +70,17 @@ public class DatabaseModule implements ApplicationModule {
     @Override
     public void cleanup() {
         try {
-            procedures.cleanup();
+            if (procedures != null) {
+                procedures.cleanup();
+            }
         } catch (Exception ex) {
             logger.warn(ex.getMessage(), ex);
         }
 
         try {
-            connection.close();
+            if (connection != null) {
+                connection.close();
+            }
         } catch (Exception ex) {
             logger.warn(ex.getMessage(), ex);
         }

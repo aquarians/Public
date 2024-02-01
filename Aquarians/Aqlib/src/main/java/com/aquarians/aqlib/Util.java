@@ -24,6 +24,7 @@
 
 package com.aquarians.aqlib;
 
+import com.aquarians.aqlib.math.DefaultProbabilityFitter;
 import com.aquarians.aqlib.math.Function;
 
 import java.text.DecimalFormat;
@@ -478,6 +479,16 @@ public class Util {
         double xavg = xsum / n;
         double yavg = ysum / n;
         alpha.value = yavg - beta.value * xavg;
+    }
+
+    public static void logStatistics(org.apache.log4j.Logger logger, String tag, DefaultProbabilityFitter fitter) {
+        fitter.computeStatistics();
+
+        logger.debug(tag + " statistics: count=" + fitter.size() +
+                " mean=" + Util.DOUBLE_DIGIT_FORMAT.format(fitter.getMean()) +
+                " dev=" + Util.DOUBLE_DIGIT_FORMAT.format(fitter.getDev()) +
+                " min=" + Util.DOUBLE_DIGIT_FORMAT.format(fitter.getMin()) +
+                " max=" + Util.DOUBLE_DIGIT_FORMAT.format(fitter.getMax()));
     }
 
 }

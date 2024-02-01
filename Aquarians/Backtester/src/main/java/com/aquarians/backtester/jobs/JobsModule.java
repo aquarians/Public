@@ -82,6 +82,8 @@ public class JobsModule implements ApplicationModule {
             return new ImportYahooStockPricesJob(databaseModule);
         } else if (name.equals(GeometricBrownianMotionStudyJob.class.getSimpleName())) {
             return new GeometricBrownianMotionStudyJob(databaseModule);
+        } else if (name.equals(OptionPricingStudyJob.class.getSimpleName())) {
+            return new OptionPricingStudyJob();
         }
 
         throw new RuntimeException("Unknown job: " + name);

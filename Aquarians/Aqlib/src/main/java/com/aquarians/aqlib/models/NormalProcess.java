@@ -70,13 +70,18 @@ public class NormalProcess {
             if (null != values) {
                 values.add(spot);
             }
+
             double z = distribution.sample();
             spot *= Math.exp(mean + dev * z);
-            if (spot < Util.MINIMUM_PRICE) {
-                return null;
-            }
+
+            // Don't let the price fall to zero
+            spot = Math.max(spot, Util.MINIMUM_PRICE);
         }
         return spot;
+    }
+
+    public double generateForwardAtMaturity(int daysToMaturity, double spot) {
+        return generateForward(daysToMaturity, spot, Util.yearFraction(1));
     }
 
     public double generateForward(int count, double spot, double dt) {

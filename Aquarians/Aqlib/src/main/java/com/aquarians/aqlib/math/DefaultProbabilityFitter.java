@@ -37,9 +37,8 @@ public class DefaultProbabilityFitter {
 
     public static final double MAD_TO_DEV_FACTOR = 1.4826022185056023;
     public static final double IQR_RANGE_FACTOR = 2.0; // 1.5 is the accepted "outliers" factor but 2.0 gives a better fit for a normal distribution
-    public static final double INLIER_RANGE_FACTOR = 0.02;
-    private static final int MIN_SAMPLES_SIZE = 32;
     private static final double OUTLIERS_PROBABILITY = 0.01;
+    private static final int DEFAULT_BUCKETS_COUNT = 30;
 
     public enum eOutliersMode {
         outliersModeInterquartile,
@@ -366,6 +365,10 @@ public class DefaultProbabilityFitter {
         }
     }
 
+    public DefaultProbabilityFitter computeStatistics() {
+        return compute();
+    }
+
     public DefaultProbabilityFitter compute() {
         compute(false);
         return this;
@@ -618,6 +621,15 @@ public class DefaultProbabilityFitter {
 
     public void setDev(double dev) {
         this.dev = dev;
+    }
+
+    public void saveHistogram(String file) {
+        saveHistogram(file, DEFAULT_BUCKETS_COUNT);
+    }
+
+    public void saveHistogram(String file, int bucketsCount) {
+        computeHistogram(bucketsCount);
+        save(file);
     }
 
     public void save(String file) {

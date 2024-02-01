@@ -43,6 +43,7 @@ public class Application {
     private static Application INSTANCE;
 
     public static final String HOME_FOLDER_PROPERTY = "user.home";
+    public static final String WORK_FOLDER_PROPERTY = "user.dir";
     public static final DecimalFormat DOUBLE_DIGIT_FORMAT = new DecimalFormat("###.##");
     public static final DecimalFormat FOUR_DIGIT_FORMAT = new DecimalFormat("###.####");
 
@@ -111,6 +112,9 @@ public class Application {
         if (null == properties.getProperty(HOME_FOLDER_PROPERTY)) {
             properties.setProperty(HOME_FOLDER_PROPERTY, System.getProperty(HOME_FOLDER_PROPERTY));
         }
+
+        // Current work directory
+        properties.setProperty(WORK_FOLDER_PROPERTY, System.getProperty(WORK_FOLDER_PROPERTY));
 
         // Initialize the logging system
         try {
