@@ -28,9 +28,7 @@ import com.aquarians.aqlib.math.DefaultProbabilityFitter;
 import com.aquarians.aqlib.math.Function;
 
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 public class Util {
 
@@ -489,6 +487,78 @@ public class Util {
                 " dev=" + Util.DOUBLE_DIGIT_FORMAT.format(fitter.getDev()) +
                 " min=" + Util.DOUBLE_DIGIT_FORMAT.format(fitter.getMin()) +
                 " max=" + Util.DOUBLE_DIGIT_FORMAT.format(fitter.getMax()));
+    }
+
+    public static String saveTags(Map<String, String> tags) {
+        StringBuilder builder = new StringBuilder();
+        boolean first = true;
+        for (Map.Entry<String, String> entry : tags.entrySet()) {
+            builder.append(first ? "" : ",").append(entry.getKey()).append("=").append(entry.getValue());
+            if (first) {
+                first = false;
+            }
+        }
+
+        return builder.toString();
+    }
+
+    public static Map<String, String> loadTags(String data) {
+        Map<String, String> tags = new TreeMap<>();
+        if (null == data) {
+            return tags;
+        }
+
+        String[] tagValues = data.split(",");
+        for (String tagValue : tagValues) {
+            int pos = tagValue.indexOf("=");
+            if (pos < 0) {
+                continue;
+            }
+
+            String tag = tagValue.substring(0, pos);
+            String value = tagValue.substring(pos + 1);
+            tags.put(tag, value);
+        }
+
+        return tags;
+    }
+
+    public static String format(Double value) {
+        if (null == value) {
+            return "null";
+        }
+
+        return DOUBLE_DIGIT_FORMAT.format(value);
+    }
+
+    public static String cwd() {
+        return System.getProperty("user.dir");
+    }
+
+    public static void plot(String filename, Points ... plots) {
+        Set<Double> xs = new TreeSet<>();
+        for (Points plot : plots) {
+            xs.addAll(plot.getXs());
+        }
+
+        CsvFileWriter writer = null;
+        try {
+            writer = new CsvFileWriter(filename);
+            for (double x : xs) {
+                List<String> values = new ArrayList<>(plots.length + 1);
+                values.add(FOUR_DIGIT_FORMAT.format(x));
+                for (Points plot : plots) {
+                    double y = plot.value(x);
+                    values.add(y != 0.0 ? FOUR_DIGIT_FORMAT.format(y) : "");
+                }
+                writer.write(values);
+            }
+        } finally {
+            if (null != writer) {
+                writer.close();
+            }
+        }
+
     }
 
 }

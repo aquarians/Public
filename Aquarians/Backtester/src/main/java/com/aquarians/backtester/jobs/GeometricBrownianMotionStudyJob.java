@@ -2,9 +2,12 @@ package com.aquarians.backtester.jobs;
 
 import com.aquarians.aqlib.*;
 import com.aquarians.aqlib.math.DefaultProbabilityFitter;
+import com.aquarians.aqlib.math.LinearIterator;
 import com.aquarians.backtester.database.DatabaseModule;
 import com.aquarians.backtester.database.records.StockPriceRecord;
+import org.apache.commons.math3.distribution.NormalDistribution;
 
+import java.util.Iterator;
 import java.util.List;
 
 public class GeometricBrownianMotionStudyJob implements Runnable {
@@ -105,6 +108,45 @@ public class GeometricBrownianMotionStudyJob implements Runnable {
                 " beta=" + Util.FOUR_DIGIT_FORMAT.format(beta.value));
     }
 
+    private void solutionOfGbmSde() {
+        int days = Util.TRADING_DAYS_IN_YEAR;
+        //int days = 1;
+        double t = Util.yearFraction(days);
+        double spot = 100.0;
+        double mu = 0.05;
+        double sigma = 0.35;
+
+        NormalDistribution std = new NormalDistribution();
+
+        DefaultProbabilityFitter zs = new DefaultProbabilityFitter();
+        DefaultProbabilityFitter forward1s = new DefaultProbabilityFitter();
+        DefaultProbabilityFitter forward2s = new DefaultProbabilityFitter();
+
+        Iterator<Double> it = new LinearIterator(0.0, 1.0, 100000);
+        while (it.hasNext()) {
+            double probability = Util.limitProbability(it.next());
+            double z = std.inverseCumulativeProbability(probability);
+            zs.addSample(z);
+
+            double forward1 = spot + spot * (mu * t + sigma * Math.sqrt(t) * z);
+            forward1s.addSample(forward1);
+
+            double forward2 = spot * Math.exp((mu - sigma * sigma * 0.5) * t + sigma * Math.sqrt(t) * z);
+            forward2s.addSample(forward2);
+        }
+
+        zs.saveHistogram(Util.cwd() + "/zs.csv", 100);
+        forward1s.saveHistogram(Util.cwd() + "/forward1s.csv", 100);
+        forward2s.saveHistogram(Util.cwd() + "/forward2s.csv", 100);
+        Util.plot(Util.cwd() + "/forwards.csv", forward1s.computeHistogram(100), forward2s.computeHistogram(100));
+
+        forward1s.compute();
+        logger.debug("forward1s mean=" + forward1s.getMean());
+
+        forward2s.compute();
+        logger.debug("forward2s mean=" + forward2s.getMean());
+    }
+
     @Override
     public void run() {
         String code = "SPY";
@@ -116,6 +158,9 @@ public class GeometricBrownianMotionStudyJob implements Runnable {
         //computeParameter(code, samples -> samples.getDev() * samples.getDev());
 
         // Normal distribution mean
-        computeParameter(code, samples -> samples.getMean());
+        //computeParameter(code, samples -> samples.getMean());
+
+        // Solution of GBM SDE
+        solutionOfGbmSde();
     }
 }

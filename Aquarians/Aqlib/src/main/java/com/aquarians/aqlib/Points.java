@@ -50,6 +50,10 @@ public class Points implements Function {
         ys.clear();
     }
 
+    public List<Double> getXs() {
+        return xs;
+    }
+
     public void add(double x, double y) {
         xs.add(x);
         ys.add(y);

@@ -1,5 +1,8 @@
 -- Sequences
 CREATE SEQUENCE sq_underliers;
+CREATE SEQUENCE sq_strategies;
+CREATE SEQUENCE sq_trades;
+CREATE SEQUENCE sq_mtm;
 
 -- Tables
 CREATE TABLE underliers
@@ -61,8 +64,106 @@ CREATE TABLE forward_terms
 CREATE INDEX ix_forward_terms_underlier_day ON forward_terms(underlier, day);
 CREATE INDEX ix_forward_terms_underlier ON forward_terms(underlier);
 
--- Cleanup
---DROP TABLE option_prices;
---DROP TABLE stock_prices;
---DROP TABLE underliers;
---DROP SEQUENCE sq_underliers;
+------------------
+CREATE TABLE stock_splits
+(
+    underlier bigint NOT NULL,
+    date date NOT NULL,
+    ratio double precision NOT NULL,
+
+    CONSTRAINT fk_stock_splits_underlier FOREIGN KEY(underlier) REFERENCES underliers,
+    CONSTRAINT uq_stock_splits UNIQUE(underlier, date)
+);
+
+CREATE INDEX ix_stock_splits_underlier ON stock_splits(underlier);
+
+CREATE TABLE stock_dividends
+(
+    underlier bigint NOT NULL,
+    date date NOT NULL,
+    dividend double precision NOT NULL,
+
+    CONSTRAINT fk_stock_dividends_underlier FOREIGN KEY(underlier) REFERENCES underliers,
+    CONSTRAINT uq_stock_dividends UNIQUE(underlier, date)
+);
+
+CREATE INDEX ix_stock_dividends_underlier ON stock_dividends(underlier);
+
+-- DROP TABLE strategies;
+CREATE TABLE strategies
+(
+   id bigint NOT NULL,
+   type character varying(64) NOT NULL,
+   number int NOT NULL, -- used for easy identification in the application log
+   multiplier double precision NULL, -- defaults to 1 if NULL
+   underlier bigint NOT NULL,
+   execution_day date NOT NULL,
+   maturity_day date NULL,
+   volatility double precision NOT NULL, -- volatility at entry
+   execution_spot double precision NOT NULL, -- spot at entry
+   expected_pnl_mean double precision NOT NULL, -- expected absolute PNL mean
+   expected_pnl_dev double precision NOT NULL, -- expected absolute PNL dev
+   realized_pnl double precision NULL, -- realized absolute PNL
+   capital double precision NOT NULL, -- how much capital is allocated to the strategy (ex: $1000)
+   commission double precision NULL, -- total accumulated commission from all the trades
+   data character varying(1024) NULL, -- text-encoded binary data for custom use
+
+   CONSTRAINT pk_strategies_id PRIMARY KEY(id),
+   CONSTRAINT fk_strategies_underlier FOREIGN KEY(underlier) REFERENCES underliers
+);
+
+CREATE INDEX ix_strategies_underlier ON strategies(underlier);
+
+CREATE TABLE trades
+(
+   id bigint NOT NULL,
+   strategy bigint NOT NULL,
+   execution_day date NOT NULL,
+   instr_type character varying(32) NOT NULL,
+   instr_code character varying(32) NOT NULL,
+   instr_is_call boolean NULL,
+   instr_maturity date NULL,
+   instr_strike double precision NULL,
+   quantity double precision NOT NULL,
+   price double precision NOT NULL,
+   tv double precision NOT NULL,
+   commission double precision NULL,
+   label character varying(32) NULL,
+   is_static boolean NULL, -- static trades are not delta-hedged
+
+   CONSTRAINT pk_trades_id PRIMARY KEY(id),
+   CONSTRAINT fk_trades_strategy FOREIGN KEY(strategy) REFERENCES strategies
+);
+
+CREATE INDEX ix_trades_strategy ON trades(strategy);
+
+CREATE TABLE mtm
+(
+    id bigint NOT NULL,
+    strategy bigint NOT NULL,
+    day date NOT NULL,
+    delta_position double precision NULL,
+    spot_price double precision NULL,
+    volatility double precision NULL,
+    market_profit double precision NULL, -- Profit if closing at market
+    theoretical_profit double precision NULL, -- Profit if closing at TV
+
+    CONSTRAINT pk_mtm_id PRIMARY KEY(id),
+    CONSTRAINT fk_mtm_strategy FOREIGN KEY(strategy) REFERENCES strategies
+);
+
+CREATE INDEX ix_mtm_strategy ON mtm(strategy);
+
+CREATE TABLE nav
+(
+   day date NOT NULL,
+   strategy_type character varying(64) NOT NULL,
+   underlier bigint NULL,
+   available double precision NOT NULL,
+   allocated double precision NOT NULL,
+
+   CONSTRAINT fk_nav_underlier FOREIGN KEY(underlier) REFERENCES underliers
+);
+
+CREATE INDEX ix_nav_strategy_type_day ON nav(strategy_type, day);
+CREATE UNIQUE INDEX ix_nav_strategy_type_day_underlier ON nav(strategy_type, day, underlier);

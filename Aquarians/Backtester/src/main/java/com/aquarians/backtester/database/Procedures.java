@@ -32,6 +32,9 @@ import java.sql.Connection;
 public class Procedures extends DbProcedures {
 
     public static final String SQ_UNDERLIERS = "sq_underliers";
+    public static final String SQ_STRATEGIES = "sq_strategies";
+    public static final String SQ_TRADES = "sq_trades";
+    public static final String SQ_MTMS = "sq_mtm";
 
     public final UnderlierSelect underlierSelect;
     public final UnderlierInsert underlierInsert;
@@ -47,8 +50,35 @@ public class Procedures extends DbProcedures {
     public final OptionPricesDeleteAll optionPricesDeleteAll;
     public final StockSplitInsert stockSplitInsert;
     public final StockSplitsSelect stockSplitsSelect;
+    public final StockDividendInsert stockDividendInsert;
+    public final StockDividendsSelect stockDividendsSelect;
     public final ForwardTermsSelect forwardTermsSelect;
     public final StockPricesSelectMinMaxDate stockPricesSelectMinMaxDate;
+    public final StrategiesSelectIdsByUnderlier strategiesSelectIdsByUnderlier;
+    public final TradesSelectByStrategy tradesSelectByStrategy;
+    public final TradeGet tradeGet;
+    public final TradesDelete tradesDelete;
+    public final StrategyGet strategyGet;
+    public final TradeInsert tradeInsert;
+    public final TradeUpdateIsStatic tradeUpdateIsStatic;
+    public final StrategyInsert strategyInsert;
+    public final StrategiesSelectUnderliers strategiesSelectUnderliers;
+    public final StrategyUpdate strategyUpdate;
+    public final StrategyUpdateData strategyUpdateData;
+    public final StrategiesSelectRealizedIds strategiesSelectRealizedIds;
+    public final StrategiesSelectTypes strategiesSelectTypes;
+    public final StrategiesDelete strategiesDelete;
+    public final MtmInsert mtmInsert;
+    public final MtmsSelectByStrategy mtmsSelectByStrategy;
+    public final MtmGet mtmGet;
+    public final MtmDelete mtmDelete;
+    public final NavSelectLastDay navSelectLastDay;
+    public final NavGetDay navGetDay;
+    public final NavInsert navInsert;
+    public final NavDelete navDelete;
+    public final NavSelectUnderliers navSelectUnderliers;
+    public final NavSelectByUnderlier navSelectByUnderlier;
+    public final NavSelectByNullUnderlier navSelectByNullUnderlier;
 
     public Procedures(Connection connection) {
         super(connection);
@@ -67,7 +97,34 @@ public class Procedures extends DbProcedures {
         optionPricesDeleteAll = addProcedure(new OptionPricesDeleteAll(connection));
         stockSplitInsert = addProcedure(new StockSplitInsert(connection));
         stockSplitsSelect = addProcedure(new StockSplitsSelect(connection));
+        stockDividendInsert = addProcedure(new StockDividendInsert(connection));
+        stockDividendsSelect = addProcedure(new StockDividendsSelect(connection));
         forwardTermsSelect = addProcedure(new ForwardTermsSelect(connection));
         stockPricesSelectMinMaxDate = addProcedure(new StockPricesSelectMinMaxDate(connection));
+        strategiesSelectIdsByUnderlier = addProcedure(new StrategiesSelectIdsByUnderlier(connection));
+        tradesSelectByStrategy = addProcedure(new TradesSelectByStrategy(connection));
+        tradeGet = addProcedure(new TradeGet(connection));
+        tradesDelete = addProcedure(new TradesDelete(connection));
+        strategyGet = addProcedure(new StrategyGet(connection));
+        tradeInsert = addProcedure(new TradeInsert(connection));
+        tradeUpdateIsStatic = addProcedure(new TradeUpdateIsStatic(connection));
+        strategyInsert = addProcedure(new StrategyInsert(connection));
+        strategiesSelectUnderliers = addProcedure(new StrategiesSelectUnderliers(connection));
+        strategyUpdate = addProcedure(new StrategyUpdate(connection));
+        strategyUpdateData = addProcedure(new StrategyUpdateData(connection));
+        strategiesSelectRealizedIds = addProcedure(new StrategiesSelectRealizedIds(connection));
+        strategiesSelectTypes = addProcedure(new StrategiesSelectTypes(connection));
+        strategiesDelete = addProcedure(new StrategiesDelete(connection));
+        mtmInsert = addProcedure(new MtmInsert(connection));
+        mtmsSelectByStrategy = addProcedure(new MtmsSelectByStrategy(connection));
+        mtmGet = addProcedure(new MtmGet(connection));
+        mtmDelete = addProcedure(new MtmDelete(connection));
+        navSelectLastDay = addProcedure(new NavSelectLastDay(connection));
+        navGetDay = addProcedure(new NavGetDay(connection));
+        navInsert = addProcedure(new NavInsert(connection));
+        navDelete = addProcedure(new NavDelete(connection));
+        navSelectUnderliers = addProcedure(new NavSelectUnderliers(connection));
+        navSelectByUnderlier = addProcedure(new NavSelectByUnderlier(connection));
+        navSelectByNullUnderlier = addProcedure(new NavSelectByNullUnderlier(connection));
     }
 }

@@ -26,6 +26,7 @@ package com.aquarians.aqlib.math;
 
 import com.aquarians.aqlib.CsvFileWriter;
 import com.aquarians.aqlib.Day;
+import com.aquarians.aqlib.Points;
 import com.aquarians.aqlib.Util;
 import org.apache.commons.math3.distribution.NormalDistribution;
 import sun.text.resources.th.FormatData_th;
@@ -322,7 +323,7 @@ public class DefaultProbabilityFitter {
     }
 
     // Computes the histogram of the random variable
-    public void computeHistogram(int count) {
+    public Points computeHistogram(int count) {
         compute();
         buckets = new int[count + 1];
         for (int i = 0; i < count; ++i) {
@@ -338,6 +339,17 @@ public class DefaultProbabilityFitter {
 
             buckets[bucket]++;
         }
+
+        Points.Builder builder = new Points.Builder();
+        for (int i = 1; i < bucketsSize() - 1; i++) {
+            builder.add(bucketX(i), bucketY(i));
+        }
+
+        // Flatten out the extreme ends
+        builder.add(bucketX(0), 0.0);
+        builder.add(bucketX(bucketsSize() - 1), 0.0);
+
+        return builder.build();
     }
 
     public boolean isOutlier(double sample) {
