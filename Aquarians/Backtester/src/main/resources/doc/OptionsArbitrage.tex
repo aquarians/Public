@@ -1,0 +1,50 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+
+\begin{document}
+
+\title{Options Arbitrage Technique}
+\maketitle
+
+Integrating:
+\begin{equation}
+    \int_{0}^{T} d y(t) = \int_{0}^{T} \frac{\partial y}{\partial x} dx(t)
+\end{equation}
+
+\begin{equation}
+    y(t) \Big|_0^T \approx \sum_{i=1}^n \frac{\partial y(t_i)}{\partial x} \Delta x_{t_i}
+\end{equation}
+
+\begin{equation}
+    y(T) - y(0) \approx \sum_{i=1}^n q_i \left( x_i - x_{i-1} \right)
+\end{equation}
+
+How arbitrage works? Any price not equal to fair option price $y(0)$ can be arbitraged by synthesizing the opposite position through rebalanced stock.
+
+Say option trades at a discount $M$, buy option at $y(0) - M$, PNL is:
+\begin{equation}
+  \begin{aligned}
+   P_o &= y(T) - \left( y(0) - M \right) \\
+       &= ( y(T) - y(0) ) + M
+  \end{aligned}
+\end{equation}
+
+
+Sell delta-hedged stock, PNL is:
+\begin{equation}
+  \begin{aligned}
+   P_s & = - \left( \sum_{i=1}^n q_i (x_i - x_{i-1}) \right) \\
+       & = - \left( y(T) - y(0) \right)
+  \end{aligned}
+\end{equation}
+
+Total PNL then:
+\begin{equation}
+  \begin{aligned}
+   P_o + P_s = M
+  \end{aligned}
+\end{equation}
+
+
+\end{document}
