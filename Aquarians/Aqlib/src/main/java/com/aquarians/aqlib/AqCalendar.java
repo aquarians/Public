@@ -110,8 +110,6 @@ public class AqCalendar extends GregorianCalendar {
 
     public AqCalendar add(Period period) {
         Calendar output = (Calendar) clone();
-        output.add(Calendar.YEAR, period.getYears());
-        output.add(Calendar.MONTH, period.getMonths());
         output.add(Calendar.DATE, period.getDays());
         return new AqCalendar(output);
     }

@@ -29,37 +29,29 @@ import java.util.regex.Pattern;
 
 public class Period {
 
-    final Pattern PATTERN = Pattern.compile("([0-9]+)([YMD])");
+    final Pattern PATTERN = Pattern.compile("([0-9]+)([YMWD])");
 
-    public static final Period ONE_DAY = new Period(0, 0, 1);
-    public static final Period ONE_MONTH = new Period(0, 1, 0);
-    public static final Period ONE_YEAR = new Period(1, 0, 0);
-
-    private final int years;
-    private final int months;
     private final int days;
 
-    public Period(int years, int months, int days) {
-        this.years = years;
-        this.months = months;
+    public Period(int days) {
         this.days = days;
     }
 
     public Period(String text) {
-        int years = 0;
-        int months = 0;
-        int days = 0;
         text = text.toUpperCase();
         Matcher matcher = PATTERN.matcher(text);
+        int days = 0;
         while (matcher.find()) {
             String countText = matcher.group(1);
             String unitText = matcher.group(2);
 
             int count = Integer.parseInt(countText);
             if (unitText.equals("Y")) {
-                years = count;
+                days = count * Util.TRADING_DAYS_IN_YEAR;
             } else if (unitText.equals("M")) {
-                months = count;
+                days = count * Util.TRADING_DAYS_IN_MONTH;
+            } else if (unitText.equals("W")) {
+                days = count * Util.TRADING_DAYS_IN_WEEK;
             } else if (unitText.equals("D")) {
                 days = count;
             } else {
@@ -67,21 +59,12 @@ public class Period {
             }
         }
 
-        this.years = years;
-        this.months = months;
         this.days = days;
     }
 
-    public Period negative() {
-        return new Period(-years, -months, -days);
-    }
-
-    public int getYears() {
-        return years;
-    }
-
-    public int getMonths() {
-        return months;
+    @Override
+    public String toString() {
+        return Integer.toString(days) + "D";
     }
 
     public int getDays() {

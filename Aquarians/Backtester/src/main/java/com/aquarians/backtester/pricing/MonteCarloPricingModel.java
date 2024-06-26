@@ -1,7 +1,7 @@
 /*
     MIT License
 
-    Copyright (c) 2020 Mihai Bunea
+    Copyright (c) 2024 Mihai Bunea
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -24,30 +24,43 @@
 
 package com.aquarians.backtester.pricing;
 
-import com.aquarians.aqlib.Day;
 import com.aquarians.aqlib.Instrument;
+import com.aquarians.aqlib.Util;
+import com.aquarians.aqlib.models.MonteCarloPricer;
+import com.aquarians.aqlib.models.NormalProcess;
 import com.aquarians.aqlib.models.PricingResult;
-import com.aquarians.aqlib.models.VolatilitySurface;
-import com.aquarians.backtester.database.DatabaseModule;
 
-import java.util.TreeMap;
+public class MonteCarloPricingModel extends AbstractPricingModel {
 
-public interface PricingModel {
+    private final NormalProcess process;
 
-    enum Type {
-        Market,
-        Normal,
-        Implied,
-        MonteCarlo
+    public MonteCarloPricingModel(NormalProcess process) {
+        this.process = process;
     }
 
-    Type getType();
+    @Override
+    public Type getType() {
+        return Type.MonteCarlo;
+    }
 
-    PricingResult price(Instrument instrument);
-    void fit();
-    VolatilitySurface getSurface();
-    Day getToday();
-    Double getSpot();
-    Double getVolatility();
+    @Override
+    public PricingResult price(Instrument instrument) {
+        if (instrument.getType().equals(Instrument.Type.STOCK)) {
+            return super.price(instrument);
+        }
 
+        if (!instrument.getType().equals(Instrument.Type.OPTION)) {
+            throw new RuntimeException("Unknown instrument type: " + instrument.getType().name());
+        }
+
+        int days = today.countTradingDays(instrument.getMaturity());
+        double yf = Util.yearFraction(days);
+        MonteCarloPricer pricer = new MonteCarloPricer(process, instrument.isCall(), spot, instrument.getStrike(), yf);
+
+        if (days < 1) {
+            return new PricingResult(pricer.valueAtExpiration(), 0.0);
+        }
+
+        return new PricingResult(pricer.price(), pricer.delta());
+    }
 }

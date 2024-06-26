@@ -40,13 +40,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeMap;
 
-public class NormalDistributionModel implements PricingModel {
+public class NormalDistributionModel extends AbstractPricingModel {
 
     public static final PricingModel.Type TYPE = PricingModel.Type.Normal;
 
     private final PricingModule owner;
-    private Day today;
-    private Double spot;
     private Double volatility;
     private List<StockPriceRecord> records;
     private double growthRate = 0.0;
@@ -58,6 +56,11 @@ public class NormalDistributionModel implements PricingModel {
 
     public NormalDistributionModel(PricingModule owner) {
         this.owner = owner;
+    }
+
+    public NormalDistributionModel(double volatility) {
+        owner = null;
+        this.volatility = volatility;
     }
 
     public Type getType() {
@@ -107,10 +110,7 @@ public class NormalDistributionModel implements PricingModel {
     @Override
     public PricingResult price(Instrument instrument) {
         if (instrument.getType().equals(Instrument.Type.STOCK)) {
-            PricingResult result = new PricingResult(spot, 1.0);
-            result.pnlDev = 0.0;
-            result.day = today;
-            return result;
+            return super.price(instrument);
         }
 
         if (!instrument.getType().equals(Instrument.Type.OPTION)) {
@@ -185,14 +185,6 @@ public class NormalDistributionModel implements PricingModel {
 
     public Double getVolatility() {
         return volatility;
-    }
-
-    public void setSpot(Double spot) {
-        this.spot = spot;
-    }
-
-    public void setToday(Day today) {
-        this.today = today;
     }
 
     @Override

@@ -25,6 +25,8 @@
 package com.aquarians.backtester.pricing;
 
 import com.aquarians.aqlib.Day;
+import com.aquarians.aqlib.Instrument;
+import com.aquarians.aqlib.models.PricingResult;
 import com.aquarians.aqlib.models.VolatilitySurface;
 
 public abstract class AbstractPricingModel implements PricingModel {
@@ -32,8 +34,23 @@ public abstract class AbstractPricingModel implements PricingModel {
     protected double interestRate = 0.0;
     protected double dividendYield = 0.0;
 
+    protected Double spot;
+
+    protected Day today;
+
     @Override
     public void fit() {
+    }
+
+    public PricingResult price(Instrument instrument) {
+        if (instrument.getType().equals(Instrument.Type.STOCK)) {
+            PricingResult result = new PricingResult(spot, 1.0);
+            result.pnlDev = 0.0;
+            result.day = today;
+            return result;
+        }
+
+        throw new RuntimeException("Unknown instrument type: " + instrument.getType().name());
     }
 
     @Override
@@ -42,15 +59,23 @@ public abstract class AbstractPricingModel implements PricingModel {
     }
 
     public Double getSpot() {
-        return null;
+        return spot;
     }
 
     public Day getToday() {
-        return null;
+        return today;
     }
 
     public Double getVolatility() {
         return null;
+    }
+
+    public void setSpot(Double spot) {
+        this.spot = spot;
+    }
+
+    public void setToday(Day today) {
+        this.today = today;
     }
 
 }

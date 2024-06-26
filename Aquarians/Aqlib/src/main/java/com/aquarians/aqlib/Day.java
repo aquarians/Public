@@ -28,6 +28,14 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+
 public class Day implements Comparable<Day> {
 
     public static final String DEFAULT_FORMAT = "yyyy-MMM-dd";
@@ -39,6 +47,30 @@ public class Day implements Comparable<Day> {
     private final int year;
     private final int month;
     private final int day;
+
+    // Distance between trading days (ex: from friday to monday = 1 day)
+    // Indexes as follows:
+    // Calendar.MONDAY -> 0
+    // Calendar.TUESDAY -> 1
+    // Calendar.WEDNESDAY -> 2
+    // Calendar.THURSDAY -> 3
+    // Calendar.FRIDAY -> 4
+    private static final int[][] WEEKDAYS_DISTANCE = {
+            {0, 1, 2, 3, 4},
+            {4, 0, 1, 2, 3},
+            {3, 4, 0, 1, 2},
+            {2, 3, 4, 0, 1},
+            {1, 2, 3, 4, 0}
+    };
+
+    // How many calendar days to add to a weekday
+    private static final int[][] CALENDARDAYS_TO_ADD = {
+            {0, 1, 2, 3, 4},
+            {0, 1, 2, 3, 6},
+            {0, 1, 2, 5, 6},
+            {0, 1, 4, 5, 6},
+            {0, 3, 4, 5, 6}
+    };
 
     public Day(Day copy) {
         this(copy.year, copy.month, copy.day);
@@ -166,14 +198,14 @@ public class Day implements Comparable<Day> {
     }
 
     // Counts trading days from this day to given day
-    public int countTradingDays(Day to) {
-        if (this.compareTo(to) > 0) {
-            return -to.countTradingDays(this);
+    public int countTradingDaysSlow(Day that) {
+        if (this.compareTo(that) > 0) {
+            return -that.countTradingDaysSlow(this);
         }
 
         int days = 0;
         Day now = new Day(year, month, day);
-        while (now.compareTo(to) < 0) {
+        while (now.compareTo(that) < 0) {
             if (!now.isWeekend()) {
                 days++;
             }
@@ -183,16 +215,45 @@ public class Day implements Comparable<Day> {
         return days;
     }
 
+    public int countTradingDays(Day that) {
+        return countTradingDaysFast(that);
+        //return countTradingDaysSlow(that);
+    }
+
+    public int countTradingDaysFast(Day that) {
+        return this.ensureTradingDay().countTradingDaysFastInternal(that.ensureTradingDay());
+    }
+
+    public int countTradingDaysFastInternal(Day that) {
+        int comparison = that.compareTo(this);
+        if (0 == comparison) {
+            return 0;
+        } else if (comparison < 0) {
+            return -that.countTradingDays(this);
+        }
+
+        int total = this.countCalendarDays(that);
+        int weeks = total / 7;
+
+        int thisIndex = this.getDayOfWeek() - Calendar.MONDAY;
+        int thatIndex = that.getDayOfWeek() - Calendar.MONDAY;
+
+        int days = WEEKDAYS_DISTANCE[thisIndex][thatIndex];
+
+        int count = weeks * Util.TRADING_DAYS_IN_WEEK + days;
+        return count;
+    }
+
     public Day next() {
-        return addDays(1);
+        return addCalendarDays(1);
     }
 
     public Day ensureTradingDay() {
         if (isWeekend()) {
             return nextTradingDay();
         }
-        return this;
 
+        return this;
     }
 
     public Day nextTradingDay() {
@@ -204,7 +265,7 @@ public class Day implements Comparable<Day> {
     }
 
     public Day previous() {
-        return addDays(-1);
+        return addCalendarDays(-1);
     }
 
     public Day previousTradingDay() {
@@ -224,18 +285,47 @@ public class Day implements Comparable<Day> {
     }
 
     public Day addDays(int days) {
-        return add(new Period(0, 0, days));
+        return addCalendarDays(days);
+    }
+
+    public Day addCalendarDays(int days) {
+        Calendar calendar = toCalendar();
+        calendar.add(Calendar.DATE, days);
+        return new Day(calendar);
     }
 
     public Day addMonths(int months) {
-        return add(new Period(0, months, 0));
+        return add(new Period(months * Util.TRADING_DAYS_IN_MONTH));
     }
 
     public Day addYears(int years) {
-        return add(new Period(years, 0, 0));
+        return add(new Period(years * Util.TRADING_DAYS_IN_YEAR));
+    }
+
+    public Day addTradingDaysFast(int days) {
+        if (isWeekend()) {
+            throw new RuntimeException("Cannot start in a weekend: " + this);
+        }
+
+        int thisIndex = getDayOfWeek() - Calendar.MONDAY;
+
+        int weeks = days / Util.TRADING_DAYS_IN_WEEK;
+        int thatIndex = days % Util.TRADING_DAYS_IN_WEEK;
+        int weekDays = CALENDARDAYS_TO_ADD[thisIndex][thatIndex];
+        int calendarDays = weeks * Util.CALENDAR_DAYS_IN_WEEK + weekDays;
+
+        Calendar calendar = toCalendar();
+        calendar.add(Calendar.DATE, calendarDays);
+
+        return new Day(calendar);
     }
 
     public Day addTradingDays(int days) {
+        //return addTradingDaysSlow(days);
+        return addTradingDaysFast(days);
+    }
+
+    public Day addTradingDaysSlow(int days) {
         int sign = (int) Math.signum(days);
         days = Math.abs(days);
 
@@ -255,19 +345,7 @@ public class Day implements Comparable<Day> {
     }
 
     public Day add(Period period) {
-        Calendar calendar = toCalendar();
-        calendar.add(Calendar.YEAR, period.getYears());
-        calendar.add(Calendar.MONTH, period.getMonths());
-        calendar.add(Calendar.DATE, period.getDays());
-        return new Day(calendar);
-    }
-
-    public Day subtract(Period period) {
-        Calendar calendar = toCalendar();
-        calendar.add(Calendar.YEAR, -period.getYears());
-        calendar.add(Calendar.MONTH, -period.getMonths());
-        calendar.add(Calendar.DATE, -period.getDays());
-        return new Day(calendar);
+        return addTradingDays(period.getDays());
     }
 
     public boolean isWeekend() {

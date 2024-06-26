@@ -28,10 +28,12 @@ import com.aquarians.aqlib.Day;
 import com.aquarians.aqlib.Pair;
 import com.aquarians.aqlib.Util;
 import com.aquarians.aqlib.math.DefaultProbabilityFitter;
+import com.aquarians.aqlib.math.LinearIterator;
 import com.aquarians.aqlib.math.PriceRecord;
 import org.apache.commons.math3.distribution.NormalDistribution;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 public class NormalProcess {
@@ -63,49 +65,12 @@ public class NormalProcess {
         return new NormalDistribution(mean, dev);
     }
 
-    private Double generateProcess(int count, double spot, double dt, List<Double> values) {
-        double mean = (growth - vol * vol * 0.5) * dt;
-        double dev = vol * Math.sqrt(dt);
-        for (int i = 0; i <= count; i++) {
-            if (null != values) {
-                values.add(spot);
-            }
-
-            double z = distribution.sample();
-            spot *= Math.exp(mean + dev * z);
-
-            // Don't let the price fall to zero
-            spot = Math.max(spot, Util.MINIMUM_PRICE);
-        }
-        return spot;
-    }
-
-    public double generateForwardAtMaturity(int daysToMaturity, double spot) {
-        return generateForward(daysToMaturity, spot, Util.yearFraction(1));
-    }
-
-    public double generateForward(int count, double spot, double dt) {
-        return generateProcess(count, spot, dt, null);
-    }
-
-    public List<Double> generatePath(int count, double spot, double dt) {
-        List<Double> values = new ArrayList<>(count + 1);
-        Double forward = generateProcess(count, spot, dt, values);
-        if (null == forward) {
-            return null;
-        }
-        return values;
-    }
-
-    public List<PriceRecord> generatePath(Day startDay, double spot, int maturity, int count) {
-        return generatePath(startDay, startDay.ensureTradingDay().addTradingDays(count), spot, maturity);
-    }
-
-    public List<PriceRecord> generatePath(Day startDay, Day endDay, double spot, int maturity) {
+    public List<PriceRecord> generatePath(Day startDay, double spot, int maturity) {
+        Day endDay = startDay.addTradingDays(maturity);
         int size = startDay.countCalendarDays(endDay);
         List<PriceRecord> records = new ArrayList<>(size + 1);
 
-        double dt = Util.yearFraction(maturity);
+        double dt = Util.yearFraction(1);
         double mean = (growth - vol * vol * 0.5) * dt;
         double dev = vol * Math.sqrt(dt);
         for (Day day = startDay.ensureTradingDay(); day.compareTo(endDay) <= 0; day = day.nextTradingDay()) {
@@ -155,5 +120,20 @@ public class NormalProcess {
         double vol = fitter.getDev() / Math.sqrt(dt);
         double growth = vol * vol * 0.5 + fitter.getMean() / dt;
         return new NormalProcess(growth, vol);
+    }
+
+    public DefaultProbabilityFitter simulateForwards(double spot, double timeToExpiration, int samples) {
+        DefaultProbabilityFitter forwards = new DefaultProbabilityFitter(samples + 1);
+
+        NormalDistribution dist = getDistribution(timeToExpiration);
+        Iterator<Double> it = new LinearIterator(0.0, 1.0, samples);
+        while (it.hasNext()) {
+            double p = Util.limitProbability(it.next());
+            double x = dist.inverseCumulativeProbability(p);
+            double forward = spot * Math.exp(x);
+            forwards.addSample(forward);
+        }
+
+        return forwards;
     }
 }

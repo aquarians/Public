@@ -88,4 +88,9 @@ public class MonteCarloPricer {
         return derivative;
     }
 
+    public double valueAtExpiration() {
+        double sign = isCall ? 1.0 : -1.0;
+        double value = Math.max(sign * (spotPrice - strikePrice), 0.0);
+        return value;
+    }
 }

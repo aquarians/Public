@@ -38,6 +38,7 @@ public class Util {
     public static final double INFINITY = 1.0 / ZERO;
     public static final int TRADING_DAYS_IN_YEAR = 252;
     public static final int TRADING_DAYS_IN_WEEK = 5;
+    public static final int CALENDAR_DAYS_IN_WEEK = 7;
     public static final int TRADING_DAYS_IN_MONTH = 20;
     public static final int DEFAULT_HEDGE_FREQUENCY = 1;
     public static final DecimalFormat DOUBLE_DIGIT_FORMAT = new DecimalFormat("#0.00");

@@ -179,7 +179,7 @@ public class GenerateTestDataJob implements Runnable {
     private void generateStockPrices() {
         // Generate theoretical values
         NormalProcess process = new NormalProcess(growthRate, volatility);
-        List<PriceRecord> path = process.generatePath(startDay, endDay, spotPrice, 1);
+        List<PriceRecord> path = process.generatePath(startDay, spotPrice, startDay.countTradingDays(endDay));
 
         // Round to market prices
         stockRecords = new ArrayList<>(path.size());
