@@ -1,11 +1,14 @@
 \documentclass{article}
 
 \usepackage{amsmath}
+\usepackage{amssymb}
 
 \begin{document}
 
-\title{Options Arbitrage Technique}
+\title{Options Arbitrage}
 \maketitle
+
+\section{Replication}
 
 Integrating:
 \begin{equation}
@@ -46,5 +49,121 @@ Total PNL then:
   \end{aligned}
 \end{equation}
 
+\section{Pricing}
+
+We've seen that we can replicate the option PNL by trading in the underlier stock.
+
+\begin{equation}
+  \begin{aligned}
+    \int_{0}^{T} d y(t) &= \int_{0}^{T} \frac{\partial y}{\partial x} dx(t) \Leftrightarrow \\
+    y(T) - y(0) &= \int_{0}^{T} \frac{\partial y}{\partial x} dx(t)
+  \end{aligned}
+\end{equation}
+
+Now, we know what $y(T)$ stands for, the option price at expiration. We also know what the right-hand integral means, the delta-hegging technique of trading $\frac{\partial y}{\partial x}$ quantity of the underlier over succesive periods of time. All that's left is figuring out what the current, arbitrage-free price of the option $y(0)$ is. We've seen that any mispricing by a margin $M$ can be arbitraged by synthesizing the opposite position through rebalanced stock, so it's really important to tell what is the fair price.
+
+One might be tempted to say it's the average price of the option at expiration, but you'd be wrong. If you think of options as insurance then ideed, the present value of the option should be the average price at expiry. But this doesn't account for the replication technique described earlier. We note that the stock process $x$ follows the GBM process:
+
+\begin{equation}
+    \frac{dx(t)}{x(t)} = \mu dt + \sigma dW(t)
+\end{equation}
+
+If the option contract at expiration is $y(T) = \Psi \left( x(T) \right)$, like for a call option at strike $K$:
+
+\begin{equation}
+  \Psi \left( x(T) \right)= \left\{
+        \begin{array}{ll}
+            x(T) - K & \quad x(T) \geq K \\
+            0 & \quad x(T) < K
+        \end{array}
+    \right.
+\end{equation}
+
+We have proven that:
+\begin{equation}
+  \begin{aligned}
+    x(T) & = x(0) e^{\left( \mu - \frac{{\sigma}^2 }{2} \right) t + \sigma \sqrt{t} z} \\
+    z & \sim \mathcal{N}(0,1)
+  \end{aligned}
+\end{equation}
+
+Which can be proven leads to:
+$\mathbb{E}[x(T)] = x(0) e^{\mu t}$
+
+The average value of the option price at expiration depends on the growth rate $\mu$, positive growth leads to higher average call price, negative growth to lower call values.
+
+So let's get back to calculating the present value of the option $y(0)$.
+
+By It\"o lemma, the dynamics of the option price has the form
+\begin{equation}
+    dy(t, x(t)) = \left(\frac{\partial y(t, x(t))}{\partial t} + \mu x(t) \frac{\partial y(t, x(t))}{\partial x} + \frac{\sigma^2 x(t)^2}{2} \frac{\partial^2 y(t, x(t))}{\partial x^2}\right) dt + \sigma x(t) \frac{\partial y(t, x(t))}{\partial x} dW(t)
+\end{equation}
+
+Grouping terms in $\frac{\partial y}{\partial x}$:
+
+\begin{equation}
+    dy(t, x(t)) = \left(\frac{\partial y(t, x(t))}{\partial t} + \frac{\sigma^2 x(t)^2}{2} \frac{\partial^2 y(t, x(t))}{\partial x^2}\right) dt + \frac{\partial y(t, x(t))}{\partial x} \left( \mu x(t) dt + \sigma x(t) dW(t) \right)
+\end{equation}
+
+We recognize the stock process $\mu x(t) dt + \sigma x(t) dW(t)$ so we get:
+
+\begin{equation}
+    dy(t, x(t)) = \left(\frac{\partial y(t, x(t))}{\partial t} + \frac{\sigma^2 x(t)^2}{2} \frac{\partial^2 y(t, x(t))}{\partial x^2}\right) dt + \frac{\partial y(t, x(t))}{\partial x} dx(t)
+\end{equation}
+
+Which is sort of the Taylor series expansion we talked in the OptionsArbitrage presentation, with the addition of the term $\frac{\partial y(t, x(t))}{\partial t} + \frac{\sigma^2 x(t)^2}{2} \frac{\partial^2 y(t, x(t))}{\partial x^2} dt$. So what we do? We set this term to zero and get a PDE:
+
+\begin{equation}
+    \frac{\partial y(t, x(t))}{\partial t} + \frac{\sigma^2 x(t)^2}{2} \frac{\partial^2 y(t, x(t))}{\partial x^2} = 0
+\end{equation}
+
+The solution of this PDE is exactly our $y(0)$. You can solve this PDE numerically by finite diference methods or use the acclaimed Black-Scholes formula which gives a closed-form expression for computing it.
+
+Still we haven't established why $y(0)$ is not the average (expected) option value at expiration. Well... it sort of is. Only not under the original SDE for the stock price, which features the growth rate $\mu$, but under a "theoretical" SDE which replaces it with zero. So with $\mu = 0$, the SDE becomes $\frac{dx(t)}{x(t)} = \sigma dW(t)$.
+
+Since we set the PDE to be zero, we are left with the very clever way of replicating the payoff of an option by trading in the underlier, effectively "transforming apples into oranges":
+
+\begin{equation}
+    dy(t, x(t)) = \frac{\partial y(t, x(t))}{\partial x} dx(t)
+\end{equation}
+
+Integrating it:
+\begin{equation}
+    \int_{0}^{T} d y(t) = \int_{0}^{T} \frac{\partial y}{\partial x} dx(t)
+\end{equation}
+
+So we effectively have
+\begin{equation}
+  \begin{aligned}
+    y(T) - y(0) & = \int_{0}^{T} \frac{\partial y}{\partial x} \left( \mu x(t) dt + \sigma x(t) dW(t) \right) \\
+                & = \int_{0}^{T} \frac{\partial y}{\partial x} \mu x(t) dt + \int_{0}^{T} \frac{\partial y}{\partial x} \sigma x(t) dW(t)
+  \end{aligned}
+\end{equation}
+
+Now let's do the trick. Taking expectations:
+\begin{equation}
+    \mathbb{E}[y(T)] - \mathbb{E}[y(0)] = \mathbb{E} \left[ \int_{0}^{T} \frac{\partial y}{\partial x} \mu x(t) dt \right] + \mathbb{E} \left[ \int_{0}^{T} \frac{\partial y}{\partial x} \sigma x(t) dW(t) \right]
+\end{equation}
+
+And let's compute these expectations for the case when $\mu = 0$, putting the $\Big|_{\mu=0}^{}$ notation where it matters:
+
+\begin{equation}
+    \mathbb{E}[y(T)\Big|_{\mu=0}^{}] - \mathbb{E}[y(0)] = \mathbb{E} \left[ \int_{0}^{T} \frac{\partial y}{\partial x} \mu x(t) dt \Big|_{\mu=0}^{} \right] + \mathbb{E} \left[ \int_{0}^{T} \frac{\partial y}{\partial x} \sigma x(t) dW(t) \right]
+\end{equation}
+
+So now it gets interesting. The integral term featuring $\mu = 0$ will vanish. We also know that expected value of the integral of a Weiner process $dW(t)$ is zero, because $\mathbb{E}[dW(t)] = 0$, so doesn't matter what we multiply it with, the expected value of the result is still zero. Therefore we are left with:
+
+\begin{equation}
+    \mathbb{E}[y(T)\Big|_{\mu=0}^{}] - y(0) = 0
+\end{equation}
+
+So we got our alternative solution (without solving the PDE):
+
+\begin{equation}
+    y(0) = \mathbb{E}[y(T)\Big|_{\mu=0}^{}]
+\end{equation}
+
+\textbf{The fair price of the option price at present time is the expected value of the option price at expiration, calculated such that the drift term $\mu$ of the stock price SDE is set to zero. Or the so called calculation under the "risk-neutral" measure.}
 
 \end{document}
+
