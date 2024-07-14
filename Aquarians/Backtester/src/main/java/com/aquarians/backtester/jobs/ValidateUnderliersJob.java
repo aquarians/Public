@@ -1,7 +1,7 @@
 /*
     MIT License
 
-    Copyright (c) 2020 Mihai Bunea
+    Copyright (c) 2024 Mihai Bunea
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -24,10 +24,7 @@
 
 package com.aquarians.backtester.jobs;
 
-import com.aquarians.aqlib.CsvFileReader;
-import com.aquarians.aqlib.Day;
-import com.aquarians.aqlib.Ref;
-import com.aquarians.aqlib.Util;
+import com.aquarians.aqlib.*;
 import com.aquarians.aqlib.math.DefaultProbabilityFitter;
 import com.aquarians.backtester.Application;
 import com.aquarians.backtester.database.DatabaseModule;
@@ -36,11 +33,10 @@ import com.aquarians.backtester.database.records.UnderlierRecord;
 
 import java.util.*;
 
-// The code is horribly inneficient but it's only run once
-    public class CurateUnderliersJob implements Runnable {
+public class ValidateUnderliersJob implements Runnable {
 
     private static org.apache.log4j.Logger logger =
-            org.apache.log4j.Logger.getLogger(CurateUnderliersJob.class.getSimpleName());
+            org.apache.log4j.Logger.getLogger(ValidateUnderliersJob.class.getSimpleName());
 
     private static final int MAX_JUMPS = 10;
     private static final int MAX_FREEZES = 10;
@@ -60,18 +56,27 @@ import java.util.*;
         List
     }
 
-    public CurateUnderliersJob(DatabaseModule owner) {
+    public ValidateUnderliersJob(DatabaseModule owner) {
         this.owner = owner;
-        startDay = new Day(Application.getInstance().getProperties().getProperty("CurateUnderliersJob.StartDay"));
-        endDay = new Day(Application.getInstance().getProperties().getProperty("CurateUnderliersJob.EndDay"));
-        maxHolidaysPerYear = Integer.parseInt(Application.getInstance().getProperties().getProperty("CurateUnderliersJob.MaxHolidaysPerYear"));
+        Properties props = Application.getInstance().getProperties();
+        startDay = parseDay(props.getProperty("ValidateUnderliersJob.StartDay"));
+        endDay = parseDay(props.getProperty("ValidateUnderliersJob.EndDay"));
+        maxHolidaysPerYear = Integer.parseInt(props.getProperty("ValidateUnderliersJob.MaxHolidaysPerYear", "15"));
+    }
+
+    private static Day parseDay(String text) {
+        if (null == text) {
+            return null;
+        }
+
+        return new Day(text);
     }
 
     private void loadUnderliers() {
         // Since here we're not doing multithreaded operations, it doesn't matter which database connection we use
         DatabaseModule databaseModule = (DatabaseModule) Application.getInstance().getModule(Application.buildModuleName(DatabaseModule.NAME, 0));
 
-        String text = Application.getInstance().getProperties().getProperty("CurateUnderliersJob.Underliers", "Database");
+        String text = Application.getInstance().getProperties().getProperty("ValidateUnderliersJob.Underliers", "Database");
         String[] components = text.split(",");
         String sourceText = components[0];
         SourceOfUnderliers source = SourceOfUnderliers.valueOf(sourceText);
@@ -123,28 +128,103 @@ import java.util.*;
             }
         }
     }
+
     @Override
     public void run() {
-        hackTest();
-        if (true) return;
-
         loadUnderliers();
 
-        // Identify holidays on a statistical basis (most underliers should have the same non-trading days)
-        //identifyHolidays();
-
-        // Select underliers that have data through all test period (weren't delisted)
-        ensureDataThroughAllPeriod();
-
-        // Reject underliers that have too many jumps or frozen data
-        //rejectJumpsAndFreezes();
-
-        // Compare stock close with the value implied from option prices
-        //ensureCloseAndImpliedAgreement();
-
+        int remaining = underliers.size();
         for (UnderlierRecord underlier : underliers) {
-            logger.info("CURATED: " + underlier.code);
+            remaining--;
+            logger.debug("Validating underlier " + underlier.code + ", remaining: " + remaining);
+            try {
+                if (validate(underlier)) {
+                    logger.debug("Validated underlier: " + underlier.code);
+                } else {
+                    logger.debug("Failed underlier: " + underlier.code);
+                }
+            } catch (Exception ex) {
+                logger.warn("Validating underlier " + underlier.code, ex);
+            }
         }
+    }
+
+    boolean validate(UnderlierRecord underlier) {
+        Day startDay = this.startDay;
+        Day endDay = this.endDay;
+
+        if ((null == startDay) || (null == endDay)) {
+            Pair<Day, Day> limits =  owner.getProcedures().stockPricesSelectMinMaxDate.execute(underlier.id);
+            if (null == startDay) {
+                startDay = limits.getKey();
+            }
+            if (null == endDay) {
+                endDay = limits.getValue();
+            }
+
+            if ((null == startDay) || (null == endDay)) {
+                logger.warn("Underlier " + underlier.code + ": no data");
+                return false;
+            }
+        }
+
+        List<StockPriceRecord> records = owner.getProcedures().stockPricesSelect.execute(underlier.id, startDay, endDay);
+        if (records.size() < Util.TRADING_DAYS_IN_YEAR) {
+            logger.warn("Underlier " + underlier.code + ": not enough data");
+            return false;
+        }
+
+        int consecutiveIdenticalPrices = 0;
+        ArrayList<StockPriceRecord> jumps = new ArrayList<>(Util.TRADING_DAYS_IN_WEEK);
+
+        for (int i = 0; i < records.size(); i++) {
+            StockPriceRecord record = records.get(i);
+            StockPriceRecord prevRecord = (i > 0) ? records.get(i - 1) : null;
+
+            // Price is zero
+            if (record.close < Util.ZERO) {
+                logger.warn("Underlier " + underlier.code + ", day: " + record.day + ", invalid price: " + Util.format(record.close));
+                return false;
+            }
+
+            if (null == prevRecord) {
+                continue;
+            }
+
+            // Price doesn't move
+            if (Math.abs(record.close - prevRecord.close) < Util.ZERO) {
+                consecutiveIdenticalPrices++;
+            } else {
+                consecutiveIdenticalPrices = 0;
+            }
+            if (consecutiveIdenticalPrices > Util.TRADING_DAYS_IN_WEEK) {
+                logger.warn("Underlier " + underlier.code + ", day: " + record.day + ", stale data");
+                return false;
+            }
+
+            // Gaps in the data
+            if (prevRecord.day.countTradingDays(record.day) > Util.TRADING_DAYS_IN_WEEK) {
+                logger.warn("Underlier " + underlier.code + ", day: " + record.day + ", gaps in the data");
+                return false;
+            }
+
+            // Jumps
+            if (Util.ratio(record.close, prevRecord.close) > 1.99) {
+                jumps.add(record);
+                if (jumps.size() == Util.TRADING_DAYS_IN_WEEK) {
+                    StockPriceRecord first = jumps.get(0);
+                    StockPriceRecord last = jumps.get(jumps.size() - 1);
+                    if (first.day.countTradingDays(last.day) < Util.TRADING_DAYS_IN_MONTH) {
+                        logger.warn("Underlier " + underlier.code + ", day: " + record.day + ", jumps in the data");
+                        return false;
+                    }
+
+                    jumps.remove(0);
+                }
+            }
+        }
+
+        return true;
     }
 
     private void ensureCloseAndImpliedAgreement() {
@@ -200,171 +280,6 @@ import java.util.*;
         return true;
     }
 
-    private void rejectJumpsAndFreezes() {
-        List<UnderlierRecord> selected = new ArrayList<>(underliers.size());
-        for (UnderlierRecord underlier : underliers) {
-            try {
-                if (!hasJumpsAndFreezes(underlier)) {
-                    logger.info("REJECTED: Has too many jumps and freezes: " + underlier.code);
-                    continue;
-                }
-
-                selected.add(underlier);
-            } catch (Exception ex) {
-                logger.warn(underlier.code, ex);
-            }
-        }
-
-        underliers = selected;
-    }
-
-    private boolean hasJumpsAndFreezes(UnderlierRecord underlier) {
-        List<StockPriceRecord> records = owner.getProcedures().stockPricesSelect.execute(underlier.id, startDay, endDay);
-        for (int i = Util.TRADING_DAYS_IN_YEAR; i < records.size(); i += Util.TRADING_DAYS_IN_MONTH) {
-            List<StockPriceRecord> window = records.subList(i - Util.TRADING_DAYS_IN_YEAR, i);
-
-            // how many times price doubles of halves
-            int jumps = 0;
-            // how many times price doesn't move at all
-            int freezes = 0;
-            StockPriceRecord prev = null;
-            for (StockPriceRecord curr : window) {
-                if (curr.close < Util.ZERO) {
-                    freezes++;
-                    prev = null;
-                }
-
-                if (prev != null) {
-                    // price halves or doubles
-                    if ((curr.close < prev.close * 0.5) || (curr.close > prev.close * 2.0)) {
-                        jumps++;
-                    }
-
-                    // price doesn't move at all
-                    if (Math.abs(curr.close - prev.close) < Util.ZERO) {
-                        freezes++;
-                    }
-                }
-
-                prev = curr;
-            }
-
-            if ((jumps > MAX_JUMPS) || (freezes > MAX_FREEZES)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private void ensureDataThroughAllPeriod() {
-        List<UnderlierRecord> selected = new ArrayList<>(underliers.size());
-        for (UnderlierRecord underlier : underliers) {
-            try {
-                if (!hasDataThroughAllPeriod(underlier)) {
-                    logger.info("REJECTED: Has no data though all period: " + underlier.code);
-                    continue;
-                }
-
-                selected.add(underlier);
-            } catch (Exception ex) {
-                logger.warn(underlier.code, ex);
-            }
-        }
-
-        underliers = selected;
-    }
-
-    private boolean hasDataThroughAllPeriod(UnderlierRecord underlier) {
-        List<StockPriceRecord> records = owner.getProcedures().stockPricesSelect.execute(underlier.id, startDay, endDay);
-        logger.info("Data check underlier=" + underlier.code + " records=" + records.size());
-        if (records.size() < 1) {
-            return false;
-        }
-
-        // Check the number of samples across set time period
-        StockPriceRecord first = records.get(0);
-        StockPriceRecord last = records.get(records.size() - 1);
-        int calendarDays = first.day.countCalendarDays(last.day);
-        double exactYears = (0.0 + calendarDays) / CALENDAR_DAYS_IN_YEAR;
-        int roundedYears = Math.max((int) Math.round(exactYears), 1);
-        int maxHolidays = maxHolidaysPerYear * roundedYears;
-        int tradingDays = first.day.countTradingDays(last.day);
-        int minSamples = tradingDays - maxHolidays;
-        if (records.size() < minSamples) {
-            return false;
-        }
-
-        if (true) {
-            return true;
-        }
-
-
-        logger.info("CSVTRACE," + underlier.code + "," + records.size());
-
-        // Must have data at start
-        List<StockPriceRecord> startRecords = owner.getProcedures().stockPricesSelect.execute(underlier.id, startDay, startDay.addTradingDays(Util.TRADING_DAYS_IN_WEEK));
-        if (startRecords.size() < 1) {
-            return false;
-        }
-
-        // Must have data at end
-        List<StockPriceRecord> endRecords = owner.getProcedures().stockPricesSelect.execute(underlier.id, endDay.addTradingDays(-Util.TRADING_DAYS_IN_WEEK), endDay);
-        if (endRecords.size() < 1) {
-            return false;
-        }
-
-        // Must have data in the middle
-        //List<StockPriceRecord> records = owner.getProcedures().stockPricesSelect.execute(underlier.id, startDay, endDay);
-        int days = startDay.countTradingDays(endDay);
-        if (records.size() < days / 2) {
-            return false;
-        }
-
-        return true;
-    }
-
-    private static final class LiqRecord {
-        double liquidity;
-        double granularity;
-        double error;
-    }
-
-    Map<String, LiqRecord> liqRecords = new TreeMap<>();
-
-    private void hackTest() {
-        CsvFileReader reader = null;
-        try {
-            reader = new CsvFileReader("D:\\Projects\\git\\OpenSource\\Public\\Aquarians\\Backtester\\src\\main\\resources\\backtester\\out.csv");
-            String[] line = null;
-            while (null != (line = reader.readRecord())) {
-                String code = line[0];
-                LiqRecord rec = new LiqRecord();
-                rec.liquidity = Double.parseDouble(line[1]);
-                rec.granularity = Double.parseDouble(line[2]);
-                rec.error = Double.parseDouble(line[3]);
-                liqRecords.put(code, rec);
-            }
-        } finally {
-            if (reader != null) {
-                reader.close();
-            }
-        }
-
-        for (Map.Entry<String, LiqRecord> entry : liqRecords.entrySet()) {
-            String code = entry.getKey();
-            LiqRecord record = entry.getValue();
-            if (record.liquidity < 5.0) {
-                continue;
-            }
-            if (record.granularity > 1.0) {
-                continue;
-            }
-            logger.debug("TRACE code=" + code + " err=" + record.error);
-            logger.debug("TRACECSV," + code);
-        }
-    }
-
     private void identifyHolidays() {
         // Get the weekdays (non weekends) over the configured period
         Set<Day> weekdays = new TreeSet<>();
@@ -418,5 +333,15 @@ import java.util.*;
         }
 
         return holidays;
+    }
+
+    private void searchSplits() {
+        for (UnderlierRecord underlier : underliers) {
+            Pair<Day, Day> limits =  owner.getProcedures().stockPricesSelectMinMaxDate.execute(underlier.id);
+            Map<Day, Double> splits = owner.getProcedures().stockSplitsSelect.execute(underlier.id, limits.getKey(), limits.getValue());
+            if (splits.size() > 0) {
+                logger.debug("Splits on " + underlier.code);
+            }
+        }
     }
 }

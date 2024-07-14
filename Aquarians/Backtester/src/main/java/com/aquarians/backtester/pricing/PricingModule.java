@@ -320,7 +320,7 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
 
         // Use the mid instead of sampled spot, otherwise it's a sampling error (wouldn't happen in a HFT setting)
         Double impliedSpot = (spotLow + spotHigh) / 2.0;
-        double ratio = Util.maxRatio(spot, impliedSpot);
+        double ratio = Util.ratio(spot, impliedSpot);
         if (ratio > 1.1) {
             // Error in data
             return null;

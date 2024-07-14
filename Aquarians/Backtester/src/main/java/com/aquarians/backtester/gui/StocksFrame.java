@@ -2,11 +2,15 @@ package com.aquarians.backtester.gui;
 
 import com.aquarians.aqlib.Day;
 import com.aquarians.aqlib.Pair;
+import com.aquarians.aqlib.Util;
+import com.aquarians.aqlib.math.PriceRecord;
 import com.aquarians.backtester.Application;
 import com.aquarians.backtester.database.DatabaseModule;
 import com.aquarians.backtester.database.records.StockPriceRecord;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
+import org.jfree.chart.renderer.xy.XYItemRenderer;
+import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
 import org.jfree.data.time.TimeSeries;
 import org.jfree.data.time.TimeSeriesCollection;
 
@@ -14,7 +18,10 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.geom.Ellipse2D;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class StocksFrame extends MdiFrame {
 
@@ -23,15 +30,53 @@ public class StocksFrame extends MdiFrame {
 
     public static final String NAME = "Stocks";
 
+    private static final Shape CIRCLE = new Ellipse2D.Double(-3, -3, 6, 6);
+    private static final Color LINE = Color.gray;
+    private static final int SIZE = 10000;
+
     private final DatabaseModule databaseModule;
 
     private JTextField codeField;
+    private JTextField startDayField;
+    private JTextField endDayField;
+    private JCheckBox adjustedCheckBox;
+    private JCheckBox pointsCheckBox;
     private TimeSeriesCollection dataset;
     private JFreeChart chart;
+    private XYItemRenderer originalRenderer;
+    private MyRenderer pointsRenderer;
+    private ChartPanel chartPanel;
 
     public StocksFrame(MainFrame owner) {
         super(NAME, owner);
         databaseModule = (DatabaseModule) Application.getInstance().getModule(Application.buildModuleName(DatabaseModule.NAME, 0));
+
+        pointsRenderer = new MyRenderer(true, true, SIZE);
+        pointsRenderer.setSeriesShape(0, CIRCLE);
+        pointsRenderer.setSeriesPaint(0, LINE);
+        pointsRenderer.setUseFillPaint(true);
+        pointsRenderer.setSeriesShapesFilled(0, true);
+        pointsRenderer.setSeriesShapesVisible(0, true);
+        pointsRenderer.setUseOutlinePaint(true);
+        pointsRenderer.setSeriesOutlinePaint(0, LINE);
+    }
+
+    private static class MyRenderer extends XYLineAndShapeRenderer {
+
+        private final List<Color> clut;
+
+        public MyRenderer(boolean lines, boolean shapes, int n) {
+            super(lines, shapes);
+            clut = new ArrayList<>(n);
+            for (int i = 0; i < n; i++) {
+                clut.add(Color.getHSBColor((float) i / n, 1, 1));
+            }
+        }
+
+        @Override
+        public Paint getItemFillPaint(int row, int column) {
+            return clut.get(column);
+        }
     }
 
     @Override
@@ -59,13 +104,37 @@ public class StocksFrame extends MdiFrame {
 
         parent.add(panel, BorderLayout.NORTH);
 
-        panel.add(new JLabel("Stock Code: "));
-
+        panel.add(new JLabel("Stock:"));
         codeField = new JTextField(10);
         panel.add(codeField);
 
         panel.add(new JSeparator());
+        panel.add(new JLabel("Start Day (DD-MMM-YYY):"));
+        startDayField = new JTextField(10);
+        panel.add(startDayField);
 
+        panel.add(new JSeparator());
+        panel.add(new JLabel("End Day:"));
+        endDayField = new JTextField(10);
+        panel.add(endDayField);
+
+        panel.add(new JSeparator());
+        panel.add(new JLabel("Adjusted:"));
+        adjustedCheckBox = new JCheckBox();
+        panel.add(adjustedCheckBox);
+
+        panel.add(new JSeparator());
+        panel.add(new JLabel("Points Chart:"));
+        pointsCheckBox = new JCheckBox();
+        panel.add(pointsCheckBox);
+        pointsCheckBox.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                toggleChartStyle();
+            }
+        });
+
+        panel.add(new JSeparator());
         JButton loadButton = new JButton("Load");
         panel.add(loadButton);
 
@@ -73,11 +142,14 @@ public class StocksFrame extends MdiFrame {
             @Override
             public void actionPerformed(ActionEvent e) {
                 final String code = codeField.getText();
+                final String startDay = startDayField.getText();
+                final String endDay = endDayField.getText();
+                final boolean adjusted = adjustedCheckBox.isSelected();
                 new Thread(new Runnable() {
                     @Override
                     public void run() {
                         try {
-                            loadStock(code);
+                            loadStock(code, startDay, endDay, adjusted);
                         } catch (Exception ex) {
                             logger.warn("Error loading stock", ex);
                         }
@@ -90,12 +162,14 @@ public class StocksFrame extends MdiFrame {
     private void initCentralPane(JPanel parent) {
         dataset = new TimeSeriesCollection();
         chart = createTimeChart(dataset, "Stock Prices", "Day", "Price");
-        ChartPanel chartPanel = new ChartPanel(chart);
+        chartPanel = new ChartPanel(chart);
+
+        originalRenderer = chart.getXYPlot().getRenderer();
 
         parent.add(chartPanel, BorderLayout.CENTER);
     }
 
-    private void loadStock(String code) {
+    private void loadStock(String code, String startDay, String endDay, boolean adjusted) {
         logger.debug("Loading stock: " + code);
 
         Long id = databaseModule.getProcedures().underlierSelect.execute(code);
@@ -104,20 +178,51 @@ public class StocksFrame extends MdiFrame {
             return;
         }
 
-        Pair<Day, Day> datePair = databaseModule.getProcedures().stockPricesSelectMinMaxDate.execute(id);
-        Day from = datePair.getKey();
-        Day to = datePair.getValue();
+        Day from = null;
+        Day to = null;
+        try {
+            from = new Day(startDay);
+        } catch (Exception ignored) {}
+        try {
+            to = new Day(endDay);
+        } catch (Exception ignored) {}
+
         if ((null == from) || (null == to)) {
-            logger.debug("Stock data interval not found for: " + code);
+            Pair<Day, Day> datePair = databaseModule.getProcedures().stockPricesSelectMinMaxDate.execute(id);
+            if (null == from) {
+                from = datePair.getKey();
+            }
+            if (null == to) {
+                to = datePair.getValue();
+            }
+            if ((null == from) || (null == to)) {
+                logger.debug("Stock data interval not supplied for: " + code);
+            }
+
+            final String startDayText = from.toString();
+            final String endDayText = to.toString();
+            SwingUtilities.invokeLater(new Runnable() {
+                @Override
+                public void run() {
+                    startDayField.setText(startDayText);
+                    endDayField.setText(endDayText);
+                }
+            });
         }
 
-        List<StockPriceRecord> records =  databaseModule.getProcedures().stockPricesSelect.execute(id, from, to);
+        List<StockPriceRecord> ohlcRecords =  databaseModule.getProcedures().stockPricesSelect.execute(id, from, to);
+        List<PriceRecord> records = StockPriceRecord.toPriceRecords(ohlcRecords);
         logger.debug("Found " + records.size() + " records for stock " + code + " from " + from + " to " + to);
 
+        if (adjusted) {
+            Map<Day, Double> splits = databaseModule.getProcedures().stockSplitsSelect.execute(id, from, to);
+            records = Util.adjustForSplits(records, splits);
+        }
+
         final TimeSeries series = new TimeSeries(code);
-        for (StockPriceRecord record : records) {
+        for (PriceRecord record : records) {
             org.jfree.data.time.Day day = new org.jfree.data.time.Day(record.day.getDay(), record.day.getMonth(), record.day.getYear());
-            series.add(day, record.close);
+            series.add(day, record.price);
         }
 
         SwingUtilities.invokeLater(new Runnable() {
@@ -132,6 +237,16 @@ public class StocksFrame extends MdiFrame {
         dataset.removeAllSeries();
         dataset.addSeries(series);
         chart.getXYPlot().setDataset(dataset);
+    }
+
+    private void toggleChartStyle() {
+        if (pointsCheckBox.isSelected()) {
+            chart.getXYPlot().setRenderer(pointsRenderer);
+        } else {
+            chart.getXYPlot().setRenderer(originalRenderer);
+        }
+
+        chartPanel.repaint();
     }
 
 }

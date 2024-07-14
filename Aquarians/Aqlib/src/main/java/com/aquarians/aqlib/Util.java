@@ -26,6 +26,7 @@ package com.aquarians.aqlib;
 
 import com.aquarians.aqlib.math.DefaultProbabilityFitter;
 import com.aquarians.aqlib.math.Function;
+import com.aquarians.aqlib.math.PriceRecord;
 
 import java.text.DecimalFormat;
 import java.util.*;
@@ -384,7 +385,7 @@ public class Util {
         return vol * 100.0;
     }
 
-    public static Double maxRatio(Double first, Double second) {
+    public static Double ratio(Double first, Double second) {
         if ((null == first) || (null == second)) {
             return null;
         }
@@ -392,17 +393,11 @@ public class Util {
         first = Math.abs(first);
         second = Math.abs(second);
 
-        double factor = Math.max(1.0 / first, 1.0 / second);
-        if (factor > 1.0) {
-            first *= factor;
-            second *= factor;
-        }
-
         double min = Math.min(first, second);
         double max = Math.max(first, second);
 
-        double ret = max / Math.max(min, Util.ZERO);
-        return ret;
+        double ratio = max / Math.max(min, Util.ZERO);
+        return ratio;
     }
 
     public static List<String> toString(List objects) {
@@ -559,7 +554,26 @@ public class Util {
                 writer.close();
             }
         }
+    }
 
+    public static List<PriceRecord> adjustForSplits(List<PriceRecord> records, Map<Day, Double> splits) {
+        if (records.size() < 1) {
+            return new ArrayList<>();
+        }
+
+        List<PriceRecord> adjustedRecords = new ArrayList<>(records.size());
+        double totalRatio = 1.0;
+        for (PriceRecord record : records) {
+            Double currentRatio = splits.get(record.day);
+            if (currentRatio != null) {
+                totalRatio *= currentRatio;
+            }
+
+            PriceRecord adjustedRecord = new PriceRecord(record.day, record.price * totalRatio);
+            adjustedRecords.add(adjustedRecord);
+        }
+
+        return adjustedRecords;
     }
 
 }
