@@ -28,16 +28,15 @@ public class CsvFileReader {
 
 	public String[] readRecord() {
         lineNumber++;
-		String line = null;
-		try {
-			line = reader.readLine();
-		} catch (Exception ex) {
-            throw new RuntimeException(ex.getMessage(), ex);		}
-
+		String line = readLine();
 		if (null == line) {
 			return null;
 		}
 
+		return parseLine(line);
+	}
+
+	public static String[] parseLine(String line) {
 		// Process quoted text, like "1,234.56"
 		int posQuote = line.indexOf("\"");
 		while (posQuote >= 0) {

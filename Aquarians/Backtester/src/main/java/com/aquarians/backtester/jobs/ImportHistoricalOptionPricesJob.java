@@ -81,7 +81,7 @@ public class ImportHistoricalOptionPricesJob implements Runnable {
     private final String regex;
     private Set<Source> sources = new TreeSet<>();
     private Map<String, String> aliases = new TreeMap<>();
-    private Set<String> underliersFilter = new TreeSet<>();
+    private Set<String> underliersFilter = new HashSet<>();
     private final boolean clearPreviousData;
     private final boolean importStockPrice;
     private final DataFormat dataFormat;
@@ -309,8 +309,20 @@ public class ImportHistoricalOptionPricesJob implements Runnable {
         CsvFileReader reader = null;
         try {
             reader = new CsvFileReader(path);
-            String[] columns = null;
-            while (null != (columns = reader.readRecord())) {
+            String line = null;
+            while (null != (line = reader.readLine())) {
+
+                // Avoid parsing the CSV if filtering is enabled
+                if (underliersFilter.size() > 0) {
+                    int pos = line.indexOf(',');
+                    String symbol = (pos < 0) ? "" : line.substring(0, pos);
+                    if (underliersFilter.contains(symbol)) {
+                        continue;
+                    }
+                }
+
+                String[] columns = CsvFileReader.parseLine(line);
+
                 row++;
                 if (0 == row) {
                     // First row is the header, skip it
@@ -343,10 +355,6 @@ public class ImportHistoricalOptionPricesJob implements Runnable {
         String alias = aliases.get(record.underlyingSymbol);
         if (alias != null) {
             record.underlyingSymbol = alias;
-        }
-
-        if ((underliersFilter.size() > 0) && (!underliersFilter.contains(record.underlyingSymbol))) {
-            return;
         }
 
         // Ignore garbage data
