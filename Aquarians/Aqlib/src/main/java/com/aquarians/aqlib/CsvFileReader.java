@@ -33,31 +33,7 @@ public class CsvFileReader {
 			return null;
 		}
 
-		return parseLine(line);
-	}
-
-	public static String[] parseLine(String line) {
-		// Process quoted text, like "1,234.56"
-		int posQuote = line.indexOf("\"");
-		while (posQuote >= 0) {
-			int nextQuote = line.indexOf("\"", posQuote + 1);
-			if (nextQuote < 0) {
-				throw new RuntimeException("Invalid quoted text: " + line);
-			}
-			String text = line.substring(posQuote + 1, nextQuote);
-
-			// Remove comma character from text
-			text = text.replace(",", "");
-
-			// Replace quoted text with unquoted one
-			String prefix = line.substring(0, posQuote);
-			String suffix = line.substring(nextQuote + 1);
-			line = prefix + text + suffix;
-			posQuote = line.indexOf("\"");
-		}
-
-		String[] values = line.split(",");
-		return values;
+		return line.split(",");
 	}
 
 	public void close() {

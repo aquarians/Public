@@ -30,7 +30,9 @@ import com.aquarians.aqlib.Util;
 import com.aquarians.backtester.Application;
 import com.aquarians.backtester.database.DatabaseModule;
 import com.aquarians.backtester.database.Procedures;
+import com.aquarians.backtester.database.procedures.OptionPriceBulkInsert;
 import com.aquarians.backtester.database.records.StockPriceRecord;
+import com.aquarians.backtester.database.records.UnderlierRecord;
 
 import java.io.File;
 import java.util.*;
@@ -42,7 +44,8 @@ public class ImportHistoricalOptionPricesJob implements Runnable {
     private static org.apache.log4j.Logger logger =
             org.apache.log4j.Logger.getLogger(ImportHistoricalOptionPricesJob.class.getSimpleName());
 
-    private static final long BULK_IMPORT_COUNT = 10000;
+    private static final long BULK_IMPORT_COUNT = 100000;
+    private static final String UNDERLYING_SYMBOL = "UnderlyingSymbol";
 
     private enum DataFormat {
         Default,
@@ -60,19 +63,20 @@ public class ImportHistoricalOptionPricesJob implements Runnable {
         Jumbo("J"); // Jumbo (1000 shares per contract)
 
         public final String code;
+        private static final Map<String, Source> codes = new HashMap<>();
+
+        static {
+            for (Source value : values()) {
+                codes.put(value.code, value);
+            }
+        }
 
         Source(String code) {
             this.code = code;
         }
 
         public static Source parseSource(String code) {
-            for (Source type : Source.values()) {
-                if (type.code.equals(code)) {
-                    return type;
-                }
-            }
-
-            return null;
+            return codes.get(code);
         }
     }
 
@@ -82,11 +86,12 @@ public class ImportHistoricalOptionPricesJob implements Runnable {
     private Set<Source> sources = new TreeSet<>();
     private Map<String, String> aliases = new TreeMap<>();
     private Set<String> underliersFilter = new HashSet<>();
+    private final Map<String, Long> underlierIds = new HashMap<>();
     private final boolean clearPreviousData;
     private final boolean importStockPrice;
     private final DataFormat dataFormat;
-
-    private long importedCount = 0;
+    private final boolean runFilter;
+    private final Day startDay;
 
     public ImportHistoricalOptionPricesJob(DatabaseModule owner) {
         this.owner = owner;
@@ -113,6 +118,19 @@ public class ImportHistoricalOptionPricesJob implements Runnable {
             }
         }
 
+        loadUnderliers();
+
+        runFilter = Boolean.parseBoolean(Application.getInstance().getProperties().getProperty("ImportHistoricalOptionPricesJob.RunFilter", "false"));
+
+        String startDay = Application.getInstance().getProperties().getProperty("ImportHistoricalOptionPricesJob.StartDay");
+        if (startDay != null) {
+            this.startDay = new Day(startDay);
+        } else {
+            this.startDay = null;
+        }
+    }
+
+    private void loadUnderliers() {
         String[] underliers = Application.getInstance().getProperties().getProperty("ImportHistoricalOptionPricesJob.Underliers" , "").split(",");
         for (String underlier : underliers) {
             underlier = underlier.trim();
@@ -123,9 +141,23 @@ public class ImportHistoricalOptionPricesJob implements Runnable {
             underliersFilter.add(underlier.trim());
         }
 
-        String underliersFile = Application.getInstance().getProperties().getProperty("ImportHistoricalStockPricesJob.UnderliersFile");
+        String underliersFile = Application.getInstance().getProperties().getProperty("ImportHistoricalOptionPricesJob.UnderliersFile");
         if (null != underliersFile) {
             loadUnderliersFromFile(underliersFile);
+        }
+
+        if (underliersFilter.size() > 0) {
+            for (String symbol : underliersFilter) {
+                Long id = owner.getProcedures().underlierSelect.execute(symbol);
+                if (id != null) {
+                    underlierIds.put(symbol, id);
+                }
+            }
+        } else {
+            List<UnderlierRecord> records = owner.getProcedures().underliersSelectAll.execute();
+            for (UnderlierRecord record : records) {
+                underlierIds.put(record.code, record.id);
+            }
         }
     }
 
@@ -158,12 +190,12 @@ public class ImportHistoricalOptionPricesJob implements Runnable {
         }
     }
 
-    public void internalRun() {
+    private List<Map.Entry<Day, String>> getFiles() {
         File fldr = new File(folder);
         File[] files = fldr.listFiles();
         if (null == files) {
             logger.info("No files");
-            return;
+            return new ArrayList<>();
         }
 
         // Sort by day
@@ -181,16 +213,36 @@ public class ImportHistoricalOptionPricesJob implements Runnable {
             paths.put(day, file.getPath());
         }
 
+        return new ArrayList<>(paths.entrySet());
+    }
+
+    public void internalRun() {
+        if (runFilter) {
+            internalRunFilter();
+            return;
+        }
+
         // Enable bulk operations
         owner.setAutoCommit(false);
 
-        // Go from past to present
-        for (Map.Entry<Day, String> entry : paths.entrySet()) {
+        // Process files
+        RowInfo rowInfo = new RowInfo();
+
+        List<Map.Entry<Day, String>> entries = getFiles();
+        for (Map.Entry<Day, String> entry : entries) {
             Day day = entry.getKey();
             String path = entry.getValue();
+
+            if ((startDay != null) && (day.compareTo(startDay) < 0)) {
+                logger.info("Skipping file: " + path + " for day:" + day);
+                continue;
+            }
+
             try {
-                int count = loadFile(day, path);
-                logger.debug("Imported count=" + count + " options for day=" + day);
+                loadFile(rowInfo, day, path);
+                logger.debug("Total rows read: " + rowInfo.totalRows + ", processed: " + rowInfo.processedRows
+                        + ", imported: " + rowInfo.importedRows + " on day " + day);
+                owner.commit();
             } catch (Exception ex) {
                 logger.warn("Reading file: " + path, ex);
             }
@@ -302,44 +354,62 @@ public class ImportHistoricalOptionPricesJob implements Runnable {
         return record;
     }
 
-    public int loadFile(Day refDay, String path) {
+    public void loadFile(RowInfo rowInfo, Day refDay, String path) {
         logger.info("Loading file: " + path + " for day:" + refDay);
 
-        int row = -1;
+        boolean first = true;
         CsvFileReader reader = null;
         try {
             reader = new CsvFileReader(path);
             String line = null;
             while (null != (line = reader.readLine())) {
+                rowInfo.totalRows++;
 
                 // Avoid parsing the CSV if filtering is enabled
-                if (underliersFilter.size() > 0) {
-                    int pos = line.indexOf(',');
-                    String symbol = (pos < 0) ? "" : line.substring(0, pos);
-                    if (underliersFilter.contains(symbol)) {
-                        continue;
-                    }
-                }
-
-                String[] columns = CsvFileReader.parseLine(line);
-
-                row++;
-                if (0 == row) {
-                    // First row is the header, skip it
+                if (!isProcessingEnabled(line)) {
                     continue;
                 }
 
+                String[] columns = line.split(",");
+
                 if (dataFormat.equals(DataFormat.Default)) {
                     FileRecord record = parseDefaultFileRecord(columns);
-                    importRecord(refDay, record);
+
+                    boolean skip = false;
+                    if (first) {
+                        // Some files contain a header with the first column being 'UnderlyingSymbol'
+                        first = false;
+                        if (record.underlyingSymbol.equals(UNDERLYING_SYMBOL)) {
+                            skip = true;
+                        }
+                    }
+
+                    if (!skip) {
+                        importRecord(rowInfo, refDay, record);
+                    }
                 } else if (dataFormat.equals(DataFormat.Orats)) {
                     FileRecord callRecord = parseOratsFileRecord(columns, true);
                     FileRecord putRecord = parseOratsFileRecord(columns, false);
-                    importRecord(refDay, callRecord);
-                    importRecord(refDay, putRecord);
+                    importRecord(rowInfo, refDay, callRecord);
+                    importRecord(rowInfo, refDay, putRecord);
                 } else {
                     throw new RuntimeException("Unknown data format: " + dataFormat.name());
                 }
+
+                rowInfo.processedRows++;
+            }
+
+            // Add remaining records that didn't add up to a batch
+            for (OptionPriceBulkInsert.Record record : rowInfo.records) {
+                owner.getProcedures().optionPriceInsert.execute(
+                        record.underlier,
+                        record.code,
+                        refDay,
+                        record.is_call,
+                        record.strike,
+                        record.maturity,
+                        record.bid,
+                        record.ask);
             }
 
         } finally {
@@ -347,11 +417,9 @@ public class ImportHistoricalOptionPricesJob implements Runnable {
                 reader.close();
             }
         }
-
-        return row;
     }
 
-    private void importRecord(Day refDay, FileRecord record) {
+    private void importRecord(RowInfo rowInfo, Day refDay, FileRecord record) {
         String alias = aliases.get(record.underlyingSymbol);
         if (alias != null) {
             record.underlyingSymbol = alias;
@@ -371,10 +439,11 @@ public class ImportHistoricalOptionPricesJob implements Runnable {
             return;
         }
 
-        Long underlier = owner.getProcedures().underlierSelect.execute(record.underlyingSymbol);
+        Long underlier = underlierIds.get(record.underlyingSymbol);
         if (null == underlier) {
             underlier = owner.getProcedures().sequenceNextVal.execute(Procedures.SQ_UNDERLIERS);
             owner.getProcedures().underlierInsert.execute(underlier, record.underlyingSymbol);
+            underlierIds.put(record.underlyingSymbol, underlier);
             logger.info("Created underlier: " + record.underlyingSymbol + " with id: " + underlier);
         }
 
@@ -387,20 +456,32 @@ public class ImportHistoricalOptionPricesJob implements Runnable {
             }
         }
 
-        owner.getProcedures().optionPriceInsert.execute(
-                underlier,
-                record.optionSymbol,
-                refDay,
-                record.isCall,
-                record.strike,
-                record.expiration,
-                record.bid,
-                record.ask);
+        OptionPriceBulkInsert.Record dbRecord = new OptionPriceBulkInsert.Record();
+        dbRecord.underlier = underlier;
+        if (record.optionSymbol.length() < OptionPriceBulkInsert.CODE_COLUMN_LENGTH) {
+            dbRecord.code = record.optionSymbol;
+        } else {
+            dbRecord.code = record.optionSymbol.substring(0, OptionPriceBulkInsert.CODE_COLUMN_LENGTH);
+        }
+        dbRecord.day = refDay;
+        dbRecord.is_call = record.isCall;
+        dbRecord.strike = record.strike;
+        dbRecord.maturity = record.expiration;
+        dbRecord.bid = record.bid;
+        dbRecord.ask = record.ask;
 
-        importedCount++;
-        if (importedCount % BULK_IMPORT_COUNT == 0) {
+        rowInfo.records.add(dbRecord);
+        rowInfo.importedRows++;
+
+        // Insert in batches of  OptionPriceBulkInsert.RECORDS
+        if (rowInfo.records.size() == OptionPriceBulkInsert.RECORDS) {
+            owner.getProcedures().optionPriceBulkInsert.execute(rowInfo.records);
+            rowInfo.records.clear();
+        }
+
+        if (rowInfo.importedRows % BULK_IMPORT_COUNT == 0) {
             owner.commit();
-            logger.debug("Imported: " + importedCount + " records");
+            logger.debug("Imported so far: " + rowInfo.importedRows + " records on day " + refDay);
         }
     }
 
@@ -422,6 +503,67 @@ public class ImportHistoricalOptionPricesJob implements Runnable {
                 reader.close();
             }
         }
+    }
+
+    private void internalRunFilter() {
+        RowInfo rowInfo = new RowInfo();
+
+        List<Map.Entry<Day, String>> entries = getFiles();
+        for (Map.Entry<Day, String> entry : entries) {
+            try {
+                filterFile(rowInfo, entry.getKey(), entry.getValue());
+                logger.debug("Total rows read: " + rowInfo.totalRows + ", processed: " + rowInfo.processedRows);
+            } catch (Exception ex) {
+                logger.warn("File " + entry.getValue(), ex);
+            }
+        }
+    }
+
+    private void filterFile(RowInfo rowInfo, Day refDay, String path) {
+        logger.info("Filtering file: " + path + " for day:" + refDay);
+
+        CsvFileReader reader = null;
+        try {
+            reader = new CsvFileReader(path);
+            String line = null;
+            while (null != (line = reader.readLine())) {
+                rowInfo.totalRows++;
+
+                if (!isProcessingEnabled(line)) {
+                    continue;
+                }
+
+                String[] values = line.split(",");
+                FileRecord record = parseDefaultFileRecord(values);
+
+                rowInfo.processedRows++;
+            }
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
+        }
+    }
+
+    private boolean isProcessingEnabled(String line) {
+        if (underliersFilter.size() == 0) {
+            return true;
+        }
+
+        int pos = line.indexOf(',');
+        String symbol = (pos < 0) ? "" : line.substring(0, pos);
+        if (underliersFilter.contains(symbol)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static final class RowInfo {
+        long totalRows;
+        long processedRows;
+        long importedRows;
+        List<OptionPriceBulkInsert.Record> records = new ArrayList<>(OptionPriceBulkInsert.RECORDS);
     }
 
 }

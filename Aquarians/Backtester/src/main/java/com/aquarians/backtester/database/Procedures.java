@@ -43,6 +43,7 @@ public class Procedures extends DbProcedures {
     public final StockPriceInsert stockPriceInsert;
     public final StockPriceUpdate stockPriceUpdate;
     public final OptionPriceInsert optionPriceInsert;
+    public final OptionPriceBulkInsert optionPriceBulkInsert;
     public final UnderliersSelectAll underliersSelectAll;
     public final StockPricesDeleteAll stockPricesDeleteAll;
     public final StockPricesSelect stockPricesSelect;
@@ -90,6 +91,7 @@ public class Procedures extends DbProcedures {
         stockPriceInsert = addProcedure(new StockPriceInsert(connection));
         stockPriceUpdate = addProcedure(new StockPriceUpdate(connection));
         optionPriceInsert = addProcedure(new OptionPriceInsert(connection));
+        optionPriceBulkInsert = addProcedure(new OptionPriceBulkInsert(connection));
         underliersSelectAll = addProcedure(new UnderliersSelectAll(connection));
         stockPricesSelect = addProcedure(new StockPricesSelect(connection));
         stockPricesDeleteAll = addProcedure(new StockPricesDeleteAll(connection));
