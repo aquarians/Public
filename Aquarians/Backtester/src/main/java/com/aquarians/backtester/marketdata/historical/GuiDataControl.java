@@ -1,7 +1,7 @@
 /*
     MIT License
 
-    Copyright (c) 2020 Mihai Bunea
+    Copyright (c) 2024 Mihai Bunea
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -22,27 +22,40 @@
     SOFTWARE.
 */
 
-package com.aquarians.backtester.marketdata;
+package com.aquarians.backtester.marketdata.historical;
 
 import com.aquarians.aqlib.Day;
-import com.aquarians.aqlib.Instrument;
-import com.aquarians.aqlib.QuoteData;
-import com.aquarians.backtester.database.records.UnderlierRecord;
 
-import java.util.List;
+public interface GuiDataControl {
 
-public interface MarketDataListener {
+    enum PlaybackMode {
+        SingleStep("Single Step"),
+        Continuous("Continuous");
 
-    /**
-     * Static data (instrument definitions) update with optional quote data
-     * For live sources, further realtime data updates are delivered by calls to quoteUpdated()
-     * @param day the day of the update or null to signal end of backtest playback
-     */
-    void processMarketDataUpdate(Day day, UnderlierRecord underlier, List<Instrument> instruments);
+        public final String caption;
 
-    /**
-     * Some or all instrument prices were updated
-     */
-    void quotesUpdated();
+        PlaybackMode(String caption) {
+            this.caption = caption;
+        }
+    }
 
+    // For GUI control
+    interface Listener {
+        void playbackStarted();
+        void playbackRunning(Day day);
+        void playbackEnded();
+    }
+
+    boolean isStartRequested();
+    PlaybackMode getPlaybackMode();
+    void resetListener();
+    void setListener(Listener listener);
+    Day getCurrentDay();
+    Day getStartDay();
+    Day getEndDay();
+    void requestStart();
+    void setPlaybackMode(PlaybackMode playbackMode);
+    void requestStop();
+    void requestNext();
+    void setCurrentDay(Day currentDay);
 }

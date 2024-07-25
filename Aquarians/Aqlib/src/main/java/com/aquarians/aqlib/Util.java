@@ -25,6 +25,7 @@
 package com.aquarians.aqlib;
 
 import com.aquarians.aqlib.math.DefaultProbabilityFitter;
+import com.aquarians.aqlib.math.Distance;
 import com.aquarians.aqlib.math.Function;
 import com.aquarians.aqlib.math.PriceRecord;
 
@@ -38,6 +39,7 @@ public class Util {
     public static final double ONE = 1.0 - 1e-12;
     public static final double INFINITY = 1.0 / ZERO;
     public static final int TRADING_DAYS_IN_YEAR = 252;
+    public static final int CALENDAR_DAYS_IN_YEAR = 365;
     public static final int TRADING_DAYS_IN_WEEK = 5;
     public static final int CALENDAR_DAYS_IN_WEEK = 7;
     public static final int TRADING_DAYS_IN_MONTH = 20;
@@ -574,6 +576,63 @@ public class Util {
         }
 
         return adjustedRecords;
+    }
+
+    public static Double getSafeSpread(Instrument instrument) {
+        if (null == instrument) {
+            return null;
+        }
+
+        Double spread = instrument.getSpread();
+        if (null == spread) {
+            return null;
+        }
+
+        if (spread < Util.ZERO) {
+            return null;
+        }
+
+        return spread;
+    }
+
+    public static <T> T getClosestValue(Collection<T> values, T targetValue, Distance<T> evaluator) {
+        if (null == targetValue) {
+            return null;
+        }
+
+        T closestValue = null;
+        Double minDistance = null;
+
+        Iterator<T> it = values.iterator();
+        while (it.hasNext()) {
+            T value = it.next();
+            double distance = evaluator.distance(value, targetValue);
+            if ((null == minDistance) || (distance < minDistance)) {
+                minDistance = distance;
+                closestValue = value;
+            }
+        }
+
+        return closestValue;
+    }
+
+    public static <K, V> V getClosestValue(Map<K, V> map, K targetKey, Distance<K> evaluator) {
+        if (null == targetKey) {
+            return null;
+        }
+
+        V closestValue = null;
+        Double minDistance = null;
+
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            double distance = evaluator.distance(entry.getKey(), targetKey);
+            if ((null == minDistance) || (distance < minDistance)) {
+                minDistance = distance;
+                closestValue = entry.getValue();
+            }
+        }
+
+        return closestValue;
     }
 
 }

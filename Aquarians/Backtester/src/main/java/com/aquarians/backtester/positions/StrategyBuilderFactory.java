@@ -1,7 +1,7 @@
 /*
     MIT License
 
-    Copyright (c) 2020 Mihai Bunea
+    Copyright (c) 2024 Mihai Bunea
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -22,27 +22,16 @@
     SOFTWARE.
 */
 
-package com.aquarians.backtester.marketdata;
+package com.aquarians.backtester.positions;
 
-import com.aquarians.aqlib.Day;
-import com.aquarians.aqlib.Instrument;
-import com.aquarians.aqlib.QuoteData;
-import com.aquarians.backtester.database.records.UnderlierRecord;
+public class StrategyBuilderFactory {
 
-import java.util.List;
+    public StrategyBuilder build(String type, PositionsModule positionsModule) {
+        if (type.equals(DataValidationStrategy.TYPE)) {
+            return new DataValidationStrategy(positionsModule);
+        }
 
-public interface MarketDataListener {
-
-    /**
-     * Static data (instrument definitions) update with optional quote data
-     * For live sources, further realtime data updates are delivered by calls to quoteUpdated()
-     * @param day the day of the update or null to signal end of backtest playback
-     */
-    void processMarketDataUpdate(Day day, UnderlierRecord underlier, List<Instrument> instruments);
-
-    /**
-     * Some or all instrument prices were updated
-     */
-    void quotesUpdated();
+        return null;
+    }
 
 }

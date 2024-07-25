@@ -1,7 +1,7 @@
 /*
     MIT License
 
-    Copyright (c) 2020 Mihai Bunea
+    Copyright (c) 2024 Mihai Bunea
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -24,35 +24,23 @@
 
 package com.aquarians.backtester.marketdata;
 
+import com.aquarians.aqlib.ApplicationModule;
 import com.aquarians.aqlib.CsvFileReader;
 import com.aquarians.aqlib.Day;
-import com.aquarians.aqlib.Util;
+import com.aquarians.aqlib.Period;
 import com.aquarians.backtester.Application;
 import com.aquarians.backtester.database.DatabaseModule;
 import com.aquarians.backtester.database.records.UnderlierRecord;
+import com.aquarians.backtester.marketdata.historical.MarketEventListener;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
-public class MarketDataControl {
+public abstract class MarketDataControl implements ApplicationModule {
 
     private static org.apache.log4j.Logger logger =
             org.apache.log4j.Logger.getLogger(MarketDataControl.class);
 
-    private static MarketDataControl INSTANCE;
-
-    public enum PlaybackMode {
-        SingleStep("Single Step"),
-        Continuous("Continuous");
-
-        public final String caption;
-
-        PlaybackMode(String caption) {
-            this.caption = caption;
-        }
-    }
+    public static final String NAME = "MarketDataControl";
 
     private enum SourceOfUnderliers {
         Database,
@@ -60,322 +48,66 @@ public class MarketDataControl {
         List
     }
 
-    // For GUI control
-    public interface Listener {
-        void playbackStarted();
-        void playbackRunning(Day day);
-        void playbackEnded();
+    protected final Object lock = new Object();
+    protected final Properties properties;
+
+    protected final DatabaseModule databaseModule;
+
+    protected List<UnderlierRecord> underliers = new ArrayList<>();
+    protected List<MarketEventListener> marketEventListeners = new ArrayList<>();
+
+    protected final List<Period> optionTerms = new ArrayList<>();
+
+    public MarketDataControl() {
+        properties = Application.getInstance().getProperties();
+
+        // Get the global database module (with index zero)
+        databaseModule = (DatabaseModule) Application.getInstance().getModule(Application.buildModuleName(DatabaseModule.NAME, 0));
+
+        loadOptionTerms();
     }
 
-    private final Object lock = new Object();
-    private boolean initialized;
-    private final Day startDay;
-    private final Day endDay;
-    private Day currentDay;
-    private PlaybackMode playbackMode = PlaybackMode.SingleStep;
-    private final Thread processorThread;
-    private boolean shutdownRequested;
-    private boolean startRequested;
-    private boolean nextRequested;
-    private boolean stopRequested;
-    private List<MarketDataModule> modules = new ArrayList<>();
-    private int waitingCount;
-    private List<UnderlierRecord> underliers = new ArrayList<>();
-    private Listener listener;
-    private List<MarketEventListener> marketEventListeners = new ArrayList<>();
-
-    private MarketDataControl() {
-        startDay = new Day(Application.getInstance().getProperties().getProperty("MarketData.StartDay"));
-        endDay = new Day(Application.getInstance().getProperties().getProperty("MarketData.EndDay"));
-        currentDay = startDay;
-        processorThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    process();
-                } catch (Exception ex) {
-                    logger.warn(ex.getMessage(), ex);
-                }
-            }
-        }, "MDCTRL");
+    public DatabaseModule getDatabaseModule() {
+        return databaseModule;
     }
 
-    public void init() {
-        if (initialized) {
-            return;
-        }
-
-        processorThread.start();
-        initialized = true;
-    }
-
-    public void cleanup() {
-        if (!initialized) {
-            return;
-        }
-
-        requestShutdown();
-        Util.safeJoin(processorThread);
-        initialized = false;
-    }
-
-    public void requestShutdown() {
-        synchronized (lock) {
-            shutdownRequested = true;
-            lock.notifyAll();
-        }
-    }
-
-    public void requestNext() {
-        synchronized (lock) {
-            nextRequested = true;
-            lock.notifyAll();
-        }
-    }
-
-    public Day getStartDay() {
-        return startDay;
-    }
-
-    public Day getEndDay() {
-        return endDay;
-    }
-
-    public Day getCurrentDay() {
-        synchronized (lock) {
-            return currentDay;
-        }
-    }
-
-    public void setCurrentDay(Day currentDay) {
-        synchronized (lock) {
-            this.currentDay = currentDay;
-        }
-    }
-
-    public PlaybackMode getPlaybackMode() {
-        synchronized (lock) {
-            return playbackMode;
-        }
-    }
-
-    public void setPlaybackMode(PlaybackMode playbackMode) {
-        synchronized (lock) {
-            this.playbackMode = playbackMode;
-        }
-    }
-
-
-    public void requestStart() {
-        synchronized (lock) {
-            startRequested = true;
-            lock.notifyAll();
-        }
-    }
-
-    public boolean isStartRequested() {
-        synchronized (lock) {
-            return startRequested;
-        }
-    }
-
-    private void process() {
-        loadUnderliers();
-
-        while (true) {
-            // Wait for signal to start playing market data or to shutdown the application
-            synchronized (lock) {
-                stopRequested = false;
-                nextRequested = false;
-                while (!(startRequested || shutdownRequested)) {
-                    Util.safeWait(lock);
-                }
-
-                if (shutdownRequested) {
-                    break;
-                }
-
-                // Notify start
-                if (null != listener) {
-                    listener.playbackStarted();
-                }
-            }
-
-            iterateDays();
-
-            // Notify end
-            synchronized (lock) {
-                startRequested = false;
-                if (null != listener) {
-                    listener.playbackEnded();
-                }
-            }
-        }
-    }
-
-    private void iterateDays() {
-        if (currentDay.equals(startDay)) {
-            notifyMarketEvent(MarketEventListener.MarketEvent.StartOfBatch);
-        }
-
-        boolean first = true;
-        while (hasMoreDays()) {
-            // Increment day
-            synchronized (lock) {
-                if (!first) {
-                    currentDay = currentDay.nextTradingDay();
-                } else {
-                    first = false;
-                }
-
-                // Notify running
-                if (null != listener) {
-                    listener.playbackRunning(currentDay);
-                }
-            }
-
-            // Day starts for all underliers
-            notifyMarketEvent(MarketEventListener.MarketEvent.StartOfDay);
-
-            // Dispatch market data for each underlier on this day
-            dispatch();
-
-            // Day ends for all underliers
-            notifyMarketEvent(MarketEventListener.MarketEvent.EndOfDay);
-
-            // HACK!!
-            Application.getInstance().onEndOfDay();
-        }
-
-        if (currentDay.equals(endDay)) {
-            notifyMarketEvent(MarketEventListener.MarketEvent.EndOfBatch);
-        }
-    }
-
-    private boolean hasMoreDays() {
-        // Check if we reached end of playback or were signalled to stop
-        synchronized (lock) {
-            return !(stopRequested || shutdownRequested || (currentDay.compareTo(endDay) >= 0));
-        }
-    }
-
-    private void dispatch() {
-        logger.debug("Play day: " + currentDay);
-
-        // Forall underliers
-        for (int i = 0; i < underliers.size(); i += modules.size()) {
-            // Reset the flag used by modules to acknowledge having processed the data
-            synchronized (lock) {
-                if (stopRequested || shutdownRequested) {
-                    break;
-                }
-                waitingCount = modules.size();
-                logger.debug("Waiting count: " + waitingCount);
-            }
-
-            // Dispatch signal to modules to process the current day, splitting the underliers among them
-            for (int k = 0; k < modules.size(); k++) {
-                MarketDataModule module = modules.get(k);
-                int pos = i + k;
-                if (pos >= underliers.size()) {
-                    synchronized (lock) {
-                        waitingCount--;
-                        logger.debug("Waiting count: " + waitingCount);
-                    }
-                    continue;
-                }
-
-                UnderlierRecord underlier = underliers.get(pos);
-                try {
-                    module.requestDispatch(currentDay, underlier);
-                } catch (Exception ex) {
-                    logger.warn(ex.getMessage(), ex);
-                }
-            }
-
-            // Wait until all modules have processed the signal
-            synchronized (lock) {
-                while (!((waitingCount <= 0) || stopRequested || shutdownRequested)) {
-                    Util.safeWait(lock);
-                }
-            }
-
-            // In stepping (debug) mode, wait for user input before proceeding further
-            if (playbackMode.equals(PlaybackMode.SingleStep)) {
-                waitRequestToContinue();
-            }
-        } // End forall underliers
-    }
-
-    private void waitRequestToContinue() {
-        synchronized (lock) {
-            while (!(nextRequested || stopRequested || shutdownRequested)) {
-                Util.safeWait(lock);
-            }
-            nextRequested = false;
-        }
-    }
-
-    public void finishedDispatching() {
-        synchronized (lock) {
-            waitingCount--;
-            logger.debug("Waiting count: " + waitingCount);
-            lock.notifyAll();
-        }
-    }
-
-    public void requestStop() {
-        synchronized (lock) {
-            stopRequested = true;
-            lock.notifyAll();
-        }
-    }
-
-    public void register(MarketDataModule module) {
-        synchronized (lock) {
-            modules.add(module);
-        }
-    }
-
-    private void loadUnderliers() {
-        // Since here we're not doing multithreaded operations, it doesn't matter which database connection we use
-        DatabaseModule databaseModule = (DatabaseModule) Application.getInstance().getModule(Application.buildModuleName(DatabaseModule.NAME, 0));
-
+    public List<String> loadUnderlierCodes() {
         String text = Application.getInstance().getProperties().getProperty("MarketData.Underliers", "Database");
         String[] components = text.split(",");
         String sourceText = components[0];
         SourceOfUnderliers source = SourceOfUnderliers.valueOf(sourceText);
         switch (source) {
             case Database:
-                loadDatabaseUnderliers(databaseModule);
-                break;
+                return loadDatabaseUnderliers();
             case File:
-                loadFileUnderliers(databaseModule, components[1]);
-                break;
+                return loadFileUnderliers(components[1]);
             case List:
-                loadListUnderliers(databaseModule, components);
-                break;
+                return loadListUnderliers(components);
             default:
-                throw new RuntimeException("Unknown source of underliers: " + sourceText);
+                break;
         }
 
-        ensureUniqueUnderliers();
-        logger.info("Loaded " + underliers.size() + " underliers");
+        throw new RuntimeException("Unknown source of underliers: " + sourceText);
     }
 
-    private void loadDatabaseUnderliers(DatabaseModule databaseModule) {
-        underliers = databaseModule.getProcedures().underliersSelectAll.execute();
-    }
+    protected abstract List<String> loadDatabaseUnderliers();
 
-    private void loadFileUnderliers(DatabaseModule databaseModule, String filename) {
+    protected List<String> loadFileUnderliers(String filename) {
+        Set<String> codes = new TreeSet<>();
+
         CsvFileReader reader = null;
         try {
             reader = new CsvFileReader(filename);
             String code = null;
-            while (null != (code = reader.readLine())) {
-                Long id = databaseModule.getProcedures().underlierSelect.execute(code);
-                if (null != id) {
-                    underliers.add(new UnderlierRecord(id, code));
+            String[] record;
+            while (null != (record = reader.readRecord())) {
+                if (record.length < 1) {
+                    continue;
+                }
+
+                code = record[0].trim();
+                if (!code.isEmpty() && !code.startsWith("#")) {
+                    codes.add(code);
                 }
             }
         } finally {
@@ -383,52 +115,21 @@ public class MarketDataControl {
                 reader.close();
             }
         }
+
+        return new ArrayList<>(codes);
     }
 
-    private void loadListUnderliers(DatabaseModule databaseModule, String[] codes) {
+    protected List<String> loadListUnderliers(String[] codes) {
+        Set<String> codesSet = new TreeSet<>();
+
         for (int i = 1; i < codes.length; i++) {
-            String code = codes[i];
-            Long id = databaseModule.getProcedures().underlierSelect.execute(code);
-            if (null != id) {
-                underliers.add(new UnderlierRecord(id, code));
+            String code = codes[i].trim();
+            if (!code.isEmpty()) {
+                codesSet.add(code);
             }
         }
-    }
 
-    public void setListener(Listener listener) {
-        synchronized (lock) {
-            this.listener = listener;
-        }
-    }
-
-    public void resetListener() {
-        synchronized (lock) {
-            this.listener = null;
-        }
-    }
-
-    public static void createInstance() {
-        if (null != INSTANCE) {
-            return;
-        }
-
-        INSTANCE = new MarketDataControl();
-    }
-
-    private void ensureUniqueUnderliers() {
-        Map<String, UnderlierRecord> underliersMap = new TreeMap<>();
-        for (UnderlierRecord underlier : underliers) {
-            underliersMap.put(underlier.code, underlier);
-        }
-
-        underliers = new ArrayList<>(underliersMap.size());
-        for (Map.Entry<String, UnderlierRecord> entry : underliersMap.entrySet()) {
-            underliers.add(entry.getValue());
-        }
-    }
-
-    public static MarketDataControl getInstance() {
-        return INSTANCE;
+        return new ArrayList<>(codesSet);
     }
 
     public void addMarketEventListener(MarketEventListener listener) {
@@ -443,7 +144,7 @@ public class MarketDataControl {
         }
     }
 
-    private void notifyMarketEvent(MarketEventListener.MarketEvent event) {
+    protected void notifyMarketEvent(MarketEventListener.MarketEvent event, Day day) {
         List<MarketEventListener> listeners = null;
         synchronized (lock) {
             listeners = new ArrayList<>(marketEventListeners);
@@ -451,11 +152,37 @@ public class MarketDataControl {
 
         for (MarketEventListener listener : listeners) {
             try {
-                listener.processMarketEvent(event, currentDay);
+                listener.processMarketEvent(event, day);
             } catch (Exception ex) {
                 logger.warn(ex.getMessage(), ex);
             }
         }
     }
 
+    @Override
+    public String getName() {
+        return Application.buildModuleName(NAME);
+    }
+
+    private void loadOptionTerms() {
+        String text = properties.getProperty("MarketData.OptionTerms", "").trim();
+        if (text.isEmpty()) {
+            return;
+        }
+
+        StringTokenizer tokenizer = new StringTokenizer(text, ",");
+        while (tokenizer.hasMoreTokens()) {
+            String token = tokenizer.nextToken().trim();
+            try {
+                Period period = new Period(token);
+                optionTerms.add(period);
+            } catch (Exception ex) {
+                logger.warn("Unrecognized period: " + token);
+            }
+        }
+    }
+
+    public List<Period> getOptionTerms() {
+        return optionTerms;
+    }
 }

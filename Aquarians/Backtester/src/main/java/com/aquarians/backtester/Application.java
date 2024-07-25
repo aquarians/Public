@@ -29,6 +29,10 @@ import com.aquarians.backtester.database.DatabaseModule;
 import com.aquarians.backtester.gui.GuiModule;
 import com.aquarians.backtester.jobs.JobsModule;
 import com.aquarians.backtester.marketdata.MarketDataModule;
+import com.aquarians.backtester.marketdata.MarketDataModuleFactory;
+import com.aquarians.backtester.marketdata.historical.HistoricalMarketDataModule;
+import com.aquarians.backtester.positions.PositionsControl;
+import com.aquarians.backtester.positions.PositionsModule;
 import com.aquarians.backtester.pricing.PricingModule;
 
 import java.sql.DriverManager;
@@ -72,11 +76,24 @@ public class Application {
     }
 
     private void createRegularModules() {
+        // Module zero provided for global access
+        modules.add(new DatabaseModule(0));
+
+        // Singletons
+        String marketDataType = properties.getProperty("MarketData.Type", HistoricalMarketDataModule.NAME);
+        modules.add(MarketDataModuleFactory.getInstance().buildMarketDataControl(marketDataType));
+
+        PositionsControl positionsControl = new PositionsControl();
+        modules.add(positionsControl);
+
         int threads = Integer.parseInt(properties.getProperty("Modules.Threads", "1"));
-        for (int index = 0; index < threads; index++) {
+        for (int index = 1; index <= threads; index++) {
             modules.add(new DatabaseModule(index));
-            modules.add(new MarketDataModule(index));
+
+            modules.add(MarketDataModuleFactory.getInstance().buildMarketDataModule(marketDataType, index));
+
             modules.add(new PricingModule(index));
+            modules.add(new PositionsModule(index));
         }
 
         modules.add(new GuiModule());
@@ -84,6 +101,10 @@ public class Application {
 
     public static final String buildModuleName(String baseName, int index) {
         return baseName + "." + index;
+    }
+
+    public static final String buildModuleName(String baseName) {
+        return buildModuleName(baseName, 0);
     }
 
     public ApplicationModule getModule(String name) {

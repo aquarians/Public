@@ -1,7 +1,7 @@
 /*
     MIT License
 
-    Copyright (c) 2020 Mihai Bunea
+    Copyright (c) 2024 Mihai Bunea
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -24,25 +24,34 @@
 
 package com.aquarians.backtester.marketdata;
 
-import com.aquarians.aqlib.Day;
-import com.aquarians.aqlib.Instrument;
-import com.aquarians.aqlib.QuoteData;
-import com.aquarians.backtester.database.records.UnderlierRecord;
+import com.aquarians.backtester.marketdata.historical.HistoricalDataControl;
+import com.aquarians.backtester.marketdata.historical.HistoricalMarketDataModule;
 
-import java.util.List;
+public class MarketDataModuleFactory {
 
-public interface MarketDataListener {
+    private static final MarketDataModuleFactory INSTANCE = new MarketDataModuleFactory();
 
-    /**
-     * Static data (instrument definitions) update with optional quote data
-     * For live sources, further realtime data updates are delivered by calls to quoteUpdated()
-     * @param day the day of the update or null to signal end of backtest playback
-     */
-    void processMarketDataUpdate(Day day, UnderlierRecord underlier, List<Instrument> instruments);
+    private MarketDataModuleFactory() {
 
-    /**
-     * Some or all instrument prices were updated
-     */
-    void quotesUpdated();
+    }
 
+    public static MarketDataModuleFactory getInstance() {
+        return INSTANCE;
+    }
+
+    public MarketDataModule buildMarketDataModule(String type, int index) {
+        if (type.equals(HistoricalMarketDataModule.TYPE)) {
+            return new HistoricalMarketDataModule(index);
+        }
+
+        throw new RuntimeException("Unknown market data module type: " + type);
+    }
+
+    public MarketDataControl buildMarketDataControl(String type) {
+        if (type.equals(HistoricalMarketDataModule.TYPE)) {
+            return new HistoricalDataControl();
+        }
+
+        throw new RuntimeException("Unknown market data control type: " + type);
+    }
 }

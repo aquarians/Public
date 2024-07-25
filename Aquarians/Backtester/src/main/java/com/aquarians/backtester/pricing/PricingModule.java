@@ -53,6 +53,7 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
     private final double tolerance;
     private List<PricingModel> pricingModels = new ArrayList<>();
     private Map<String, Instrument> instruments = new TreeMap<>();
+    private Map<Day, Double> interestRates = new HashMap<>();
 
     private Day today;
     private UnderlierRecord underlier;
@@ -67,6 +68,7 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         activeModel = PricingModel.Type.valueOf(Application.getInstance().getProperties().getProperty("Pricing.ActiveModel", PricingModel.Type.Market.name()));
         tolerance = Double.parseDouble(Application.getInstance().getProperties().getProperty("Pricing.Tolerance", "0"));
 
+        loadInterestRates();
         createPricingModels();
     }
 
@@ -101,6 +103,15 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         this.today = day;
         this.underlier = underlier;
         addInstruments(instruments);
+        recalculateAndNotify();
+    }
+
+    @Override
+    public void quotesUpdated() {
+        recalculateAndNotify();
+    }
+
+    private void recalculateAndNotify() {
         fitModels();
         notifyListeners();
     }
@@ -169,6 +180,10 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         return underlier;
     }
 
+    public Instrument getUnderlierInstrument() {
+        return getStock();
+    }
+
     public PricingModel getPricingModel() {
         for (PricingModel model : pricingModels) {
             if (model.getType().equals(activeModel)) {
@@ -188,7 +203,7 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
             }
         }
 
-        computeModelError();
+        //computeModelError();
     }
 
     private void computeModelError() {
@@ -389,4 +404,76 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
     public double getTolerance() {
         return tolerance;
     }
+
+    private void loadInterestRates() {
+        String file = Application.getInstance().getProperties().getProperty("Pricing.Rates.File");
+        if (null == file) {
+            return;
+        }
+
+        Map<Day, Double> rates = new HashMap<>();
+        Day startDay = null;
+        Day endDay = null;
+
+        CsvFileReader reader = null;
+        try {
+            reader = new CsvFileReader(file);
+
+            String[] record;
+            int line = 0;
+            while (null != (record = reader.readRecord())) {
+                line++;
+
+                // Header: date,value
+                if (1 == line) {
+                    continue;
+                }
+
+                // Example: 2001-01-01,5.4100
+                if (record.length < 2) {
+                    continue;
+                }
+
+                try {
+                    Day day = new Day(record[0], Day.FORMAT_YYYY_MM_DD);
+                    Double rate = Double.parseDouble(record[1]) / 100.0;
+                    if (null == startDay) {
+                        startDay = day;
+                    }
+                    endDay = day;
+                    rates.put(day, rate);
+                } catch (Exception ex) {
+                    logger.warn("Line " + line + ": " + Arrays.toString(record), ex);
+                }
+            }
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
+        }
+
+        // Some days might be missing, fill them with the previous day's rate
+        if (null != startDay) {
+            Double prevRate = null;
+            for (Day day = startDay.ensureTradingDay(); day.compareTo(endDay) <= 0; day = day.nextTradingDay()) {
+                Double currRate = rates.get(day);
+                if (currRate != null) {
+                    prevRate = currRate;
+                }
+                if (prevRate != null) {
+                    interestRates.put(day, prevRate);
+                }
+            }
+        }
+    }
+
+    public double getInterestRate(Day day) {
+        Double rate = interestRates.get(day);
+        if (rate != null) {
+            return rate;
+        }
+
+        return 0.0;
+    }
+
 }

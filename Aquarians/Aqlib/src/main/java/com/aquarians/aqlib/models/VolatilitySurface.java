@@ -61,6 +61,14 @@ public class VolatilitySurface implements Volatility {
         return maturities.firstKey();
     }
 
+    public StrikeVols getFirstTerm() {
+        if (maturities.size() == 0) {
+            return null;
+        }
+
+        return maturities.firstEntry().getValue();
+    }
+
     public void add(int maturity, double strike, double vol) {
         StrikeVols strikeVols = maturities.get(maturity);
         if (null == strikeVols) {

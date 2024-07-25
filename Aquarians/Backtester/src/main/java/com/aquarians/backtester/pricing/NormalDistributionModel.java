@@ -148,10 +148,9 @@ public class NormalDistributionModel extends AbstractPricingModel {
         spot = owner.getSpotPrice();
 
         // Load from the database if not provided externally
-        int days = Util.TRADING_DAYS_IN_YEAR;
         List<StockPriceRecord> records = this.records;
         if (null == records) {
-            Day from = today.addTradingDays(-days);
+            Day from = today.addDays(-Util.CALENDAR_DAYS_IN_YEAR);
             DatabaseModule databaseModule = owner.getDatabaseModule();
             records = databaseModule.getProcedures().stockPricesSelect.execute(owner.getUnderlier().id, from, today);
         }
@@ -174,7 +173,7 @@ public class NormalDistributionModel extends AbstractPricingModel {
         }
 
         // Check if we got enough samples
-        if (fitter.size() < days / 2) {
+        if (fitter.size() < Util.TRADING_DAYS_IN_YEAR / 2) {
             volatility = null;
             return;
         }

@@ -83,6 +83,10 @@ public class Portfolio {
         return (pricingModel.getToday().compareTo(strategy.maturityDay) >= 0);
     }
 
+    PricingModel getPricingModel() {
+        return pricingModel;
+    }
+
     public Double getRealizedProfit() {
         return realizedProfit;
     }

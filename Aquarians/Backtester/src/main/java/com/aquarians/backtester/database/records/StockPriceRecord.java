@@ -25,6 +25,7 @@
 package com.aquarians.backtester.database.records;
 
 import com.aquarians.aqlib.Day;
+import com.aquarians.aqlib.Instrument;
 import com.aquarians.aqlib.Util;
 import com.aquarians.aqlib.math.DefaultProbabilityFitter;
 import com.aquarians.aqlib.math.PriceRecord;
@@ -73,33 +74,6 @@ public class StockPriceRecord implements Comparable<StockPriceRecord> {
         return day.toString() + ": " + Double.toString(close);
     }
 
-    // Use both open and close
-    public static DefaultProbabilityFitter computeReturnsOpenClose(List<StockPriceRecord> records) {
-        DefaultProbabilityFitter fitter = new DefaultProbabilityFitter(records.size() * 2);
-
-        List<Double> tmps = new ArrayList<>(records.size() * 2);
-        for (StockPriceRecord record : records) {
-            tmps.add(record.open);
-            tmps.add(record.close);
-        }
-
-        Double prev = null;
-        for (Double curr : tmps) {
-            if (curr < Util.ZERO) {
-                prev = null;
-                continue;
-            }
-
-            if (null != prev) {
-                double x = Math.log(curr / prev);
-                fitter.addSample(x);
-            }
-            prev = curr;
-        }
-
-        return fitter;
-    }
-
     @Override
     public int compareTo(StockPriceRecord that) {
         return this.day.compareTo(that.day);
@@ -112,4 +86,18 @@ public class StockPriceRecord implements Comparable<StockPriceRecord> {
         }
         return prices;
     }
+
+    public Instrument buildStock(String code) {
+        Double price = close;
+        if (null == price) {
+            return null;
+        }
+
+        Instrument instrument = new Instrument(Instrument.Type.STOCK, code, false, null, null);
+        instrument.setBidPrice(price);
+        instrument.setAskPrice(price);
+
+        return instrument;
+    }
+
 }

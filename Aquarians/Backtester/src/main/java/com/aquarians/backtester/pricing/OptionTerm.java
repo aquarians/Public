@@ -25,6 +25,7 @@
 package com.aquarians.backtester.pricing;
 
 import com.aquarians.aqlib.*;
+import com.aquarians.aqlib.math.DefaultProbabilityFitter;
 import com.aquarians.aqlib.models.BlackScholes;
 import com.aquarians.aqlib.models.PricingResult;
 
@@ -37,6 +38,8 @@ public class OptionTerm implements Comparable<OptionTerm> {
 
     private static org.apache.log4j.Logger logger =
             org.apache.log4j.Logger.getLogger(OptionTerm.class.getSimpleName());
+
+    private static final double DEEP_OTM_DEVS = 0.75;
 
     public final Day maturity;
     public final int daysToExpiry;
@@ -369,5 +372,62 @@ public class OptionTerm implements Comparable<OptionTerm> {
             prev_pair = curr_pair;
         }
         return finder.forward;
+    }
+
+    public Double computeParityForwardPrice(double interestRate) {
+        List<OptionPair> pairs = new ArrayList<>(strikes.size());
+
+        // Select valid pairs
+        for (Map.Entry<Double, OptionPair> entry : strikes.entrySet()) {
+            OptionPair pair = entry.getValue();
+            if (pair.hasFullSpread()) {
+                pairs.add(pair);
+            }
+        }
+        if (0 == pairs.size()) {
+            return null;
+        }
+
+        // Find the strike closest to the forward price
+        // C - P = F - K therefore for F = K we have C = P
+        OptionPair forwardPair = null;
+        Double minDistance = null;
+        for (OptionPair pair : pairs) {
+            double distance = Math.abs(pair.call.getPrice() - pair.put.getPrice());
+            if ((null == minDistance) || (distance < minDistance)) {
+                minDistance = distance;
+                forwardPair = pair;
+            }
+        }
+
+        // Compute ATM implied volatility using the forward strike as approximation for forward price
+        Instrument atmOption = (forwardPair.call.getPrice() < forwardPair.put.getPrice()) ? forwardPair.call : forwardPair.put;
+        BlackScholes pricer = new BlackScholes(atmOption.isCall(), atmOption.getStrike(), atmOption.getStrike(), yf, interestRate, 0.0, 0.0);
+        pricer.setBlack(true); // Use the Black model (dividend yield already contained in the forward price)
+        Double atmVol = pricer.impliedVolatility(atmOption.getPrice());
+        if (null == atmVol) {
+            return null;
+        }
+
+        // Compute standard deviation of the forward price log return at expiration
+        double dev = atmVol * Math.sqrt(yf);
+
+        // Take an average of the forward price implied by the put-call parity
+        DefaultProbabilityFitter forwards = new DefaultProbabilityFitter(pairs.size());
+        for (OptionPair pair : pairs) {
+
+            // Filter out deep out of the money strikes
+            double ret = Math.log(pair.strike / forwardPair.strike);
+            if (Math.abs(ret) > dev * DEEP_OTM_DEVS) {
+                continue;
+            }
+
+            // C - P = F - K
+            double impliedForward = pair.strike + pair.call.getPrice() - pair.put.getPrice();
+            forwards.addSample(impliedForward);
+        }
+
+        forwards.compute();
+        return forwards.getMean();
     }
 }

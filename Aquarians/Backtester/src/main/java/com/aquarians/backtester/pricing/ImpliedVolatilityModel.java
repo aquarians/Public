@@ -110,37 +110,52 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
     }
 
     void computeImpliedVol(OptionTerm term) {
+        double interestRate = owner.getInterestRate(today);
+
+        Double forwardPrice = term.computeParityForwardPrice(interestRate);
+        if (null == forwardPrice) {
+            forwardPrice = spotPrice;
+            if (null == forwardPrice) {
+                return;
+            }
+        }
+
+        VolatilitySurface.StrikeVols strikeVols = computeImpliedVol(term, forwardPrice, interestRate);
+        surface.add(term.daysToExpiry, strikeVols);
+    }
+
+    private VolatilitySurface.StrikeVols computeImpliedVol(OptionTerm term, double forward, double interest) {
+        VolatilitySurface.StrikeVols strikeVols = new VolatilitySurface.StrikeVols();
+        strikeVols.forward = forward;
+        strikeVols.interest = interest;
+
         for (Map.Entry<Double, OptionPair> entry : term.getStrikes().entrySet()) {
             Double strike = entry.getKey();
             OptionPair pair = entry.getValue();
 
             // Use OTM option
-            Instrument option = (strike < spotPrice) ? pair.put : pair.call;
+            Instrument option = (strike < forward) ? pair.put : pair.call;
             if (null == option) {
                 continue;
             }
 
-            // Must have both bid and ask
             Double price = option.getMidPrice();
             if (null == price) {
                 continue;
             }
 
-            Double forward = spotPrice;
-            Double parityForward = term.computeParityForwardPrice();
-
-            BlackScholes pricer = new BlackScholes(option.isCall(), spotPrice, pair.strike, term.yf, interestRate, dividendYield, 0.0);
+            // Use Black model where dividend yield is implied by forward price
+            BlackScholes pricer = new BlackScholes(option.isCall(), forward, strike, term.yf, interest, 0.0, 0.0);
+            pricer.setBlack(true);
             Double vol = pricer.impliedVolatility(price);
             if (null == vol) {
                 continue;
             }
 
-            if (volatilityRounding != null) {
-                vol = Util.round(vol, volatilityRounding);
-            }
-
-            surface.add(term.daysToExpiry, strike, vol);
+            strikeVols.put(strike, vol);
         }
+
+        return strikeVols;
     }
 
     @Override

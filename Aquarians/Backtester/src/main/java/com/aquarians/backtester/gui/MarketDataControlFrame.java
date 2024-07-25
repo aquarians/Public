@@ -26,9 +26,10 @@ package com.aquarians.backtester.gui;
 
 import com.aquarians.aqlib.Day;
 import com.aquarians.backtester.Application;
-import com.aquarians.backtester.marketdata.MarketDataControl;
-import com.aquarians.backtester.marketdata.MarketDataListener;
-import com.aquarians.backtester.marketdata.MarketDataModule;
+
+import com.aquarians.backtester.marketdata.historical.DefaultGuiDataControl;
+import com.aquarians.backtester.marketdata.historical.GuiDataControl;
+import com.aquarians.backtester.marketdata.historical.HistoricalDataControl;
 import org.jdesktop.swingx.JXDatePicker;
 
 
@@ -39,9 +40,11 @@ import java.awt.event.ActionEvent;
 import java.util.Calendar;
 import java.util.Locale;
 
-public class MarketDataControlFrame extends MdiFrame implements MarketDataControl.Listener {
+public class MarketDataControlFrame extends MdiFrame implements GuiDataControl.Listener {
 
     public static final String NAME = "Market Data Control";
+
+    private final GuiDataControl dataControl;
 
     private JXDatePicker currentDayPicker;
     private JComboBox<String> playbackModeCombo;
@@ -52,18 +55,29 @@ public class MarketDataControlFrame extends MdiFrame implements MarketDataContro
 
     public MarketDataControlFrame(MainFrame owner) {
         super(NAME, owner);
+
+        HistoricalDataControl historicalDataControl = (HistoricalDataControl) Application.getInstance().getModule(Application.buildModuleName(HistoricalDataControl.NAME));
+        if (historicalDataControl != null) {
+            dataControl = historicalDataControl;
+        } else {
+            dataControl = new DefaultGuiDataControl();
+        }
     }
 
     @Override
     public void init() {
         initLayout();
         super.init();
-        MarketDataControl.getInstance().setListener(this);
+        if (dataControl != null) {
+            dataControl.setListener(this);
+        }
     }
 
     @Override
     public void cleanup() {
-        MarketDataControl.getInstance().resetListener();
+        if (dataControl != null) {
+            dataControl.resetListener();
+        }
     }
 
     @Override
@@ -128,12 +142,12 @@ public class MarketDataControlFrame extends MdiFrame implements MarketDataContro
     }
 
     private void updateGUI() {
-        if (MarketDataControl.getInstance().isStartRequested()) {
+        if (dataControl.isStartRequested()) {
             // Playback in progress
             currentDayPicker.setEnabled(false);
             playbackModeCombo.setEnabled(false);
             startButton.setEnabled(false);
-            nextButton.setEnabled(MarketDataControl.getInstance().getPlaybackMode().equals(MarketDataControl.PlaybackMode.SingleStep));
+            nextButton.setEnabled(dataControl.getPlaybackMode().equals(HistoricalDataControl.PlaybackMode.SingleStep));
             resetButton.setEnabled(false);
             stopButton.setEnabled(true);
         } else {
@@ -142,7 +156,7 @@ public class MarketDataControlFrame extends MdiFrame implements MarketDataContro
             playbackModeCombo.setEnabled(true);
             startButton.setEnabled(true);
             nextButton.setEnabled(false);
-            resetButton.setEnabled(!MarketDataControl.getInstance().getCurrentDay().equals(MarketDataControl.getInstance().getStartDay()));
+            resetButton.setEnabled(!dataControl.getCurrentDay().equals(dataControl.getStartDay()));
             stopButton.setEnabled(false);
         }
     }
@@ -156,7 +170,7 @@ public class MarketDataControlFrame extends MdiFrame implements MarketDataContro
         labelConstraints.weightx = 0.25;
         container.add(label, labelConstraints);
 
-        JTextField text = new JTextField(MarketDataControl.getInstance().getStartDay().toString());
+        JTextField text = new JTextField(dataControl.getStartDay().toString());
         text.setEnabled(false);
 
         GridBagConstraints textConstraints = new GridBagConstraints();
@@ -176,7 +190,7 @@ public class MarketDataControlFrame extends MdiFrame implements MarketDataContro
         labelConstraints.weightx = 0.25;
         container.add(label, labelConstraints);
 
-        JTextField text = new JTextField(MarketDataControl.getInstance().getEndDay().toString());
+        JTextField text = new JTextField(dataControl.getEndDay().toString());
         text.setEnabled(false);
 
         GridBagConstraints textConstraints = new GridBagConstraints();
@@ -199,7 +213,7 @@ public class MarketDataControlFrame extends MdiFrame implements MarketDataContro
         currentDayPicker = new JXDatePicker();
         currentDayPicker.setLocale(Locale.US);
         currentDayPicker.setFormats(Day.DEFAULT_FORMAT);
-        currentDayPicker.setDate(MarketDataControl.getInstance().getCurrentDay().toCalendar().getTime());
+        currentDayPicker.setDate(dataControl.getCurrentDay().toCalendar().getTime());
         currentDayPicker.getEditor().setEditable(true);
         currentDayPicker.getMonthView().setForeground(Color.BLACK);
 
@@ -220,12 +234,12 @@ public class MarketDataControlFrame extends MdiFrame implements MarketDataContro
         labelConstraints.weightx = 0.25;
         container.add(label, labelConstraints);
 
-        String[] playbackModes = new String[MarketDataControl.PlaybackMode.values().length];
+        String[] playbackModes = new String[HistoricalDataControl.PlaybackMode.values().length];
         int selectedPlaybackMode = -1;
         for (int i = 0; i < playbackModes.length; i++) {
-            MarketDataControl.PlaybackMode mode = MarketDataControl.PlaybackMode.values()[i];
+            HistoricalDataControl.PlaybackMode mode = HistoricalDataControl.PlaybackMode.values()[i];
             playbackModes[i] = mode.caption;
-            if (mode.equals(MarketDataControl.getInstance().getPlaybackMode())) {
+            if (mode.equals(dataControl.getPlaybackMode())) {
                 selectedPlaybackMode = i;
             }
         }
@@ -296,33 +310,33 @@ public class MarketDataControlFrame extends MdiFrame implements MarketDataContro
     }
 
     private void startButtonClicked() {
-        MarketDataControl.getInstance().requestStart();
+        dataControl.requestStart();
     }
 
     private void playbackModeChanged() {
         int index = playbackModeCombo.getSelectedIndex();
-        MarketDataControl.PlaybackMode playbackMode = MarketDataControl.PlaybackMode.values()[index];
-        MarketDataControl.getInstance().setPlaybackMode(playbackMode);
+        HistoricalDataControl.PlaybackMode playbackMode = HistoricalDataControl.PlaybackMode.values()[index];
+        dataControl.setPlaybackMode(playbackMode);
     }
 
     private void stopButtonClicked() {
-        MarketDataControl.getInstance().requestStop();
+        dataControl.requestStop();
     }
 
     private void nextButtonClicked() {
-        MarketDataControl.getInstance().requestNext();
+        dataControl.requestNext();
     }
 
     private void currentDayChanged() {
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(currentDayPicker.getDate());
-        MarketDataControl.getInstance().setCurrentDay(new Day(calendar));
+        dataControl.setCurrentDay(new Day(calendar));
         updateGUI();
     }
 
     private void resetButtonClicked() {
-        MarketDataControl.getInstance().setCurrentDay(MarketDataControl.getInstance().getStartDay());
-        currentDayPicker.setDate(MarketDataControl.getInstance().getCurrentDay().toCalendar().getTime());
+        dataControl.setCurrentDay(dataControl.getStartDay());
+        currentDayPicker.setDate(dataControl.getCurrentDay().toCalendar().getTime());
         updateGUI();
     }
 

@@ -25,6 +25,8 @@
 package com.aquarians.backtester.database.records;
 
 import com.aquarians.aqlib.Day;
+import com.aquarians.aqlib.Instrument;
+import com.aquarians.aqlib.Util;
 
 public class OptionPriceRecord {
 
@@ -45,4 +47,27 @@ public class OptionPriceRecord {
         this.bid = bid;
         this.ask = ask;
     }
+
+    public Instrument buildOption() {
+        // Ignore if expiring today
+        if (maturity.compareTo(day) <= 0) {
+            return null;
+        }
+
+        // Roll to previous trading day
+        Day maturity = this.maturity.rollToTradingDay(false);
+
+        Instrument instrument = new Instrument(Instrument.Type.OPTION, code, is_call, maturity, strike);
+        instrument.setBidPrice(bid);
+        instrument.setAskPrice(ask);
+        if ((instrument.getBidPrice() != null) && (instrument.getBidPrice() < Util.ZERO)) {
+            instrument.setBidPrice(null);
+        }
+        if ((instrument.getAskPrice() != null) && (instrument.getAskPrice() < Util.ZERO)) {
+            instrument.setAskPrice(null);
+        }
+
+        return instrument;
+    }
+
 }

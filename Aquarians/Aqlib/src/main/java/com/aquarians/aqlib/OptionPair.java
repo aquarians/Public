@@ -74,4 +74,12 @@ public class OptionPair implements Comparable<OptionPair> {
         double impliedSpot = (spotLow + spotHigh) / 2.0;
         return impliedSpot;
     }
+
+    public boolean hasFullSpread() {
+        // Both call and put must have valid bid and ask
+        Double callSpread = Util.getSafeSpread(call);
+        Double putSpread = Util.getSafeSpread(put);
+        return (null != callSpread) && (null != putSpread);
+    }
+
 }
