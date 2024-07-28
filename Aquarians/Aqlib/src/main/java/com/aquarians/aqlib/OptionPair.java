@@ -82,4 +82,11 @@ public class OptionPair implements Comparable<OptionPair> {
         return (null != callSpread) && (null != putSpread);
     }
 
+    public OptionPair clone() {
+        OptionPair clone = new OptionPair(strike);
+        clone.call = (this.call != null) ? this.call.clone() : null;
+        clone.put = (this.put != null) ? this.put.clone() : null;
+        return clone;
+    }
+
 }

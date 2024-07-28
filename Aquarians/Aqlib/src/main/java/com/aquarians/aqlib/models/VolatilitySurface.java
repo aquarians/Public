@@ -25,6 +25,7 @@
 package com.aquarians.aqlib.models;
 
 import com.aquarians.aqlib.Day;
+import com.aquarians.aqlib.Pair;
 import com.aquarians.aqlib.Util;
 
 import java.util.ArrayList;
@@ -59,14 +60,6 @@ public class VolatilitySurface implements Volatility {
         }
 
         return maturities.firstKey();
-    }
-
-    public StrikeVols getFirstTerm() {
-        if (maturities.size() == 0) {
-            return null;
-        }
-
-        return maturities.firstEntry().getValue();
     }
 
     public void add(int maturity, double strike, double vol) {
@@ -354,5 +347,22 @@ public class VolatilitySurface implements Volatility {
         }
 
         return resultSurface;
+    }
+
+    public Pair<Double, Double> getForwardVol() {
+        for (StrikeVols strikeVols : maturities.values()) {
+            if (null == strikeVols.forward) {
+                continue;
+            }
+
+            Double vol =  strikeVols.interpolate(strikeVols.forward);
+            if (null == vol) {
+                continue;
+            }
+
+            return new Pair<>(strikeVols.forward, vol);
+        }
+
+        return null;
     }
 }

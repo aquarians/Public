@@ -136,4 +136,11 @@ public class Instrument {
         setBidPrice(price);
         setAskPrice(price);
     }
+
+    public Instrument clone() {
+        Instrument instrument = new Instrument(type, code, call, maturity, strike);
+        instrument.bidPrice = bidPrice;
+        instrument.askPrice = askPrice;
+        return instrument;
+    }
 }

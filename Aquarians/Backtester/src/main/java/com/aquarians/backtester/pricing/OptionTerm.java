@@ -28,6 +28,7 @@ import com.aquarians.aqlib.*;
 import com.aquarians.aqlib.math.DefaultProbabilityFitter;
 import com.aquarians.aqlib.models.BlackScholes;
 import com.aquarians.aqlib.models.PricingResult;
+import com.aquarians.aqlib.models.VolatilitySurface;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,6 +46,7 @@ public class OptionTerm implements Comparable<OptionTerm> {
     public final int daysToExpiry;
     public final double yf;
     public TreeMap<Double, OptionPair> strikes = new TreeMap<>();
+    public TreeMap<Double, OptionPair> backupStrikes = new TreeMap<>();
 
     public OptionTerm(Day today, Day maturity) {
         this.maturity = maturity;
@@ -422,12 +424,205 @@ public class OptionTerm implements Comparable<OptionTerm> {
                 continue;
             }
 
-            // C - P = F - K
-            double impliedForward = pair.strike + pair.call.getPrice() - pair.put.getPrice();
+            double factor = Math.exp(interestRate * yf);
+
+            // C - P = (F - K) * e^(-r*T)
+            double impliedForward = pair.strike + (pair.call.getPrice() - pair.put.getPrice()) * factor;
             forwards.addSample(impliedForward);
         }
 
         forwards.compute();
         return forwards.getMean();
+    }
+
+    interface OptionAccessor {
+        Instrument getOption(OptionPair pair);
+    }
+
+    interface PriceAccessor {
+        Double getPrice(Instrument option);
+    }
+
+    interface PriceSetter {
+        void setPrice(Instrument option, double price);
+    }
+
+    private static void collectPrice(OptionPair pair, OptionAccessor optionAccessor, PriceAccessor priceAccessor, List<Instrument> instruments) {
+        Instrument option = optionAccessor.getOption(pair);
+        if (null == option) {
+            return;
+        }
+
+        Double price = priceAccessor.getPrice(option);
+        if (null == price) {
+            return;
+        }
+
+        instruments.add(option);
+    }
+
+    public void validatePrices() {
+        List<Instrument> callBids = new ArrayList<>();
+        List<Instrument> callAsks = new ArrayList<>();
+        List<Instrument> putBids = new ArrayList<>();
+        List<Instrument> putAsks = new ArrayList<>();
+
+        // Call prices must increase with increasing strike price
+        for (Map.Entry<Double, OptionPair> entry : strikes.entrySet()) {
+            collectPrice(entry.getValue(), pair -> pair.call, option -> option.getBidPrice(), callBids);
+            collectPrice(entry.getValue(), pair -> pair.call, option -> option.getAskPrice(), callAsks);
+        }
+
+        // Put prices must increase with decreasing strike price
+        for (Map.Entry<Double, OptionPair> entry : strikes.descendingMap().entrySet()) {
+            collectPrice(entry.getValue(), pair -> pair.put, option -> option.getBidPrice(), putBids);
+            collectPrice(entry.getValue(), pair -> pair.put, option -> option.getAskPrice(), putAsks);
+        }
+
+        // Get the longest increasing sequences
+        List<Integer> callBidsLDS = findLDS(callBids, option -> option.getBidPrice());
+        List<Integer> callAsksLDS = findLDS(callAsks, option -> option.getAskPrice());
+        List<Integer> putBidsLDS = findLDS(putBids, option -> option.getBidPrice());
+        List<Integer> putAsksLDS = findLDS(putAsks, option -> option.getAskPrice());
+
+        // Rebuild the prices with validated values
+        TreeMap<Double, OptionPair> newStrikes = createStrikes();
+        setPrices(newStrikes, callBids, callBidsLDS, pair -> pair.call, option -> option.getBidPrice(), (option, price) -> option.setBidPrice(price));
+        setPrices(newStrikes, callAsks, callAsksLDS, pair -> pair.call, option -> option.getAskPrice(), (option, price) -> option.setAskPrice(price));
+        setPrices(newStrikes, putBids, putBidsLDS, pair -> pair.put, option -> option.getBidPrice(), (option, price) -> option.setBidPrice(price));
+        setPrices(newStrikes, putAsks, putAsksLDS, pair -> pair.put, option -> option.getAskPrice(), (option, price) -> option.setAskPrice(price));
+
+        // Make a backup of the original prices
+        backupStrikes();
+
+        // Copy the validated prices over the old ones
+        for (OptionPair oldPair : strikes.values()) {
+            OptionPair newPair = newStrikes.get(oldPair.strike);
+            if (oldPair.call != null) {
+                oldPair.call.setBidPrice(newPair.call.getBidPrice());
+                oldPair.call.setAskPrice(newPair.call.getAskPrice());
+            }
+            if (oldPair.put != null) {
+                oldPair.put.setBidPrice(newPair.put.getBidPrice());
+                oldPair.put.setAskPrice(newPair.put.getAskPrice());
+            }
+        }
+    }
+
+    // Iterative function to find the indexes of longest decreasing subsequence of a given array
+    private static List<Integer> findLDS(List<Instrument> options, PriceAccessor accessor) {
+        // base case
+        if (options == null || options.size() == 0) {
+            return new ArrayList<>();
+        }
+
+        // `LDS[i]` stores the longest decreasing subsequence of subarray
+        // `nums[0…i]` that ends with `nums[i]`
+        List<List<Integer>> LDS = new ArrayList<>();
+        for (int i = 0; i < options.size(); i++) {
+            LDS.add(new ArrayList<>());
+        }
+
+        // `LDS[0]` denotes longest decreasing subsequence ending at `nums[0]`
+        LDS.get(0).add(0);
+
+        // start from the second array element
+        for (int i = 1; i < options.size(); i++) {
+            Instrument ioption = options.get(i);
+
+            // do for each element in subarray `nums[0…i-1]`
+            for (int j = 0; j < i; j++) {
+                Instrument joption = options.get(j);
+
+                // find longest decreasing subsequence that ends with `nums[j]`
+                // where `options[j]` is more than the current element `nums[i]`
+                if (accessor.getPrice(joption) >= accessor.getPrice(ioption) && LDS.get(j).size() > LDS.get(i).size()) {
+                    LDS.set(i, new ArrayList<>(LDS.get(j)));
+                }
+            }
+
+            // include `options[i]` in `LDS[i]`
+            LDS.get(i).add(i);
+        }
+
+        // `j` will contain an index of LDS
+        int j = 0;
+        for (int i = 0; i < options.size(); i++) {
+            if (LDS.get(j).size() < LDS.get(i).size()) {
+                j = i;
+            }
+        }
+
+        // return LDS
+        return LDS.get(j);
+    }
+
+    private void setPrices(TreeMap<Double, OptionPair> pairs,
+                           List<Instrument> options,
+                           List<Integer> pricesLDS,
+                           OptionAccessor optionAccessor,
+                           PriceAccessor priceAccessor,
+                           PriceSetter priceSetter) {
+        Double prevPrice = null;
+        for (Integer i : pricesLDS) {
+            Instrument option = options.get(i);
+            OptionPair pair = pairs.get(option.getStrike());
+            double currPrice = priceAccessor.getPrice(option);
+            if ((prevPrice != null) && (currPrice > prevPrice)) {
+                throw new RuntimeException("Prices not in decreasing order");
+            }
+            Instrument target = optionAccessor.getOption(pair);
+            priceSetter.setPrice(target, currPrice);
+            prevPrice = currPrice;
+        }
+    }
+
+    private TreeMap<Double, OptionPair> createStrikes() {
+        TreeMap<Double, OptionPair> pairs = new TreeMap<>();
+
+        for (OptionPair oldPair : strikes.values()) {
+
+            OptionPair newPair = new OptionPair(oldPair.strike);
+            pairs.put(newPair.strike, newPair);
+
+            if (oldPair.call != null) {
+                newPair.call = oldPair.call.clone();
+                newPair.call.setBidPrice(null);
+                newPair.call.setAskPrice(null);
+            }
+
+            if (oldPair.put != null) {
+                newPair.put = oldPair.put.clone();
+                newPair.put.setBidPrice(null);
+                newPair.put.setAskPrice(null);
+            }
+        }
+
+        return pairs;
+    }
+
+    private void backupStrikes() {
+        backupStrikes = new TreeMap<>();
+        for (OptionPair pair : strikes.values()) {
+            backupStrikes.put(pair.strike, pair.clone());
+        }
+    }
+
+    public void restoreBackup() {
+        strikes = backupStrikes;
+    }
+
+    public double getTotalParityArbitrage(VolatilitySurface surface) {
+        double total = 0.0;
+
+        VolatilitySurface.StrikeVols strikeVols = surface.getMaturities().get(daysToExpiry);
+        if (null == strikeVols) {
+            return total;
+        }
+
+        for (OptionPair pair : strikes.values()) {
+        }
+
+        return total;
     }
 }

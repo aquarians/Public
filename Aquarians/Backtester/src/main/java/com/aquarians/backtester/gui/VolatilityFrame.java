@@ -69,7 +69,7 @@ public class VolatilityFrame extends MdiFrame implements PricingListener {
 
     public VolatilityFrame(MainFrame owner) {
         super(NAME, owner);
-        pricingModule = (PricingModule) Application.getInstance().getModule(Application.buildModuleName(PricingModule.NAME, 0));
+        pricingModule = (PricingModule) Application.getInstance().getModule(Application.buildModuleName(PricingModule.NAME, 1));
     }
 
     @Override

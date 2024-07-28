@@ -24,6 +24,7 @@
 
 package com.aquarians.backtester.positions;
 
+import com.aquarians.aqlib.Pair;
 import com.aquarians.aqlib.Util;
 import com.aquarians.aqlib.models.VolatilitySurface;
 import com.aquarians.aqlib.positions.Strategy;
@@ -48,22 +49,22 @@ public class DataValidationStrategy extends StrategyBuilder {
 
     @Override
     public Strategy createStrategy() {
+        Double fwd = null;
+        Double vol = null;
+
         VolatilitySurface surface = pricingModule.getVolatilitySurface();
-        if (null == surface) {
-            return null;
+        if (surface != null) {
+            Pair<Double, Double> pair = surface.getForwardVol();
+            if (pair != null) {
+                fwd = pair.getKey();
+                vol = pair.getValue();
+            }
         }
 
-        VolatilitySurface.StrikeVols term = surface.getFirstTerm();
-        if (null == term.forward) {
-            return null;
-        }
-
-        Double vol = term.interpolate(term.forward);
-
-        databaseModule.getProcedures().stockPriceUpdate.execute(pricingModule.getUnderlier().id, pricingModule.getToday(), term.forward, vol);
+        databaseModule.getProcedures().stockPriceUpdate.execute(pricingModule.getUnderlier().id, pricingModule.getToday(), fwd, vol);
         logger.debug("Update day=" + pricingModule.getToday() +
                 " und=" + pricingModule.getUnderlier().code +
-                " fwd=" + Util.format(term.forward) +
+                " fwd=" + Util.format(fwd) +
                 " vol=" + Util.format(vol != null ? vol * 100.0 : null) + "%");
 
         return null;

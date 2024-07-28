@@ -114,10 +114,7 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
 
         Double forwardPrice = term.computeParityForwardPrice(interestRate);
         if (null == forwardPrice) {
-            forwardPrice = spotPrice;
-            if (null == forwardPrice) {
-                return;
-            }
+            return;
         }
 
         VolatilitySurface.StrikeVols strikeVols = computeImpliedVol(term, forwardPrice, interestRate);

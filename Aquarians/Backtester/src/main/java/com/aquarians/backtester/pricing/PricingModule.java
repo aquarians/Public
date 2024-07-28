@@ -51,6 +51,8 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
     private final TreeMap<Day, OptionTerm> optionTerms = new TreeMap<>();
     private PricingModel.Type activeModel;
     private final double tolerance;
+    private final double borrowRate;
+    private final boolean validatePrices;
     private List<PricingModel> pricingModels = new ArrayList<>();
     private Map<String, Instrument> instruments = new TreeMap<>();
     private Map<Day, Double> interestRates = new HashMap<>();
@@ -67,6 +69,8 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         databaseModule = (DatabaseModule) Application.getInstance().getModule(Application.buildModuleName(DatabaseModule.NAME, index));
         activeModel = PricingModel.Type.valueOf(Application.getInstance().getProperties().getProperty("Pricing.ActiveModel", PricingModel.Type.Market.name()));
         tolerance = Double.parseDouble(Application.getInstance().getProperties().getProperty("Pricing.Tolerance", "0"));
+        validatePrices = Boolean.parseBoolean(Application.getInstance().getProperties().getProperty("Pricing.ValidatePrices", "false"));
+        borrowRate = Double.parseDouble(Application.getInstance().getProperties().getProperty("Pricing.BorrowRate", "0"));
 
         loadInterestRates();
         createPricingModels();
@@ -169,6 +173,18 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
 
                 term.add(instrument);
             }
+        }
+
+        validatePrices();
+    }
+
+    private void validatePrices() {
+        if (!validatePrices) {
+            return;
+        }
+
+        for (OptionTerm term : optionTerms.values()) {
+            term.validatePrices();
         }
     }
 
@@ -474,6 +490,27 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         }
 
         return 0.0;
+    }
+
+    public void restoreBackup() {
+        for (OptionTerm term : optionTerms.values()) {
+            term.restoreBackup();
+        }
+    }
+
+    public double getTotalParityArbitrage() {
+        double total = 0.0;
+
+        VolatilitySurface surface = getVolatilitySurface();
+        if (null == surface) {
+            return total;
+        }
+
+        for (OptionTerm term : optionTerms.values()) {
+            total += term.getTotalParityArbitrage(surface);
+        }
+
+        return total;
     }
 
 }
