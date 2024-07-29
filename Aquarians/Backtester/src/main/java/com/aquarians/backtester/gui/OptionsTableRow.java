@@ -37,8 +37,10 @@ public class OptionsTableRow {
     private final Double putAsk;
     private final Color backgroundColor;
     private final boolean atm;
+    private final double parityPrice;
 
-    public OptionsTableRow(Double strike, Double callValue, Double callBid, Double callAsk, Double putValue, Double putBid, Double putAsk, Color backgroundColor, boolean atm) {
+    public OptionsTableRow(Double strike, Double callValue, Double callBid, Double callAsk, Double putValue,
+                           Double putBid, Double putAsk, Color backgroundColor, boolean atm, double parityPrice) {
         this.strike = strike;
         this.callValue = callValue;
         this.callBid = callBid;
@@ -48,6 +50,7 @@ public class OptionsTableRow {
         this.putAsk = putAsk;
         this.backgroundColor = backgroundColor;
         this.atm = atm;
+        this.parityPrice = parityPrice;
     }
 
     public Double getStrike() {
@@ -84,5 +87,9 @@ public class OptionsTableRow {
 
     public boolean isAtm() {
         return atm;
+    }
+
+    public double getParityPrice() {
+        return parityPrice;
     }
 }

@@ -158,5 +158,6 @@ public class PositionsControl implements MarketEventListener, ApplicationModule 
         databaseModule.getProcedures().mtmDelete.execute();
         databaseModule.getProcedures().tradesDelete.execute();
         databaseModule.getProcedures().strategiesDelete.execute();
+        databaseModule.getProcedures().statisticsDelete.execute();
     }
 }

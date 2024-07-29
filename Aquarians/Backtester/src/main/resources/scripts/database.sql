@@ -50,6 +50,19 @@ CREATE TABLE option_prices
 CREATE INDEX ix_option_prices_underlier_day ON option_prices(underlier, day);
 CREATE INDEX ix_option_prices_underlier ON option_prices(underlier);
 
+CREATE TABLE statistics
+(
+   underlier bigint NOT NULL,
+   day date NOT NULL,
+   spot_fwd_diff double precision NULL,
+   parity_total double precision NULL,
+   option_total double precision NULL,
+
+   CONSTRAINT fk_statistics_underlier FOREIGN KEY(underlier) REFERENCES underliers
+);
+
+CREATE UNIQUE INDEX ix_statistics_underlier_day ON statistics(underlier, day);
+
 CREATE TABLE forward_terms
 (
    underlier bigint NOT NULL,

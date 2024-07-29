@@ -1,3 +1,27 @@
+/*
+    MIT License
+
+    Copyright (c) 2024 Mihai Bunea
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+*/
+
 package com.aquarians.backtester.gui;
 
 import com.aquarians.aqlib.Day;
@@ -44,14 +68,14 @@ public class StocksFrame extends MdiFrame {
     private TimeSeriesCollection dataset;
     private JFreeChart chart;
     private XYItemRenderer originalRenderer;
-    private MyRenderer pointsRenderer;
+    private CustomLineAndShapeRenderer pointsRenderer;
     private ChartPanel chartPanel;
 
     public StocksFrame(MainFrame owner) {
         super(NAME, owner);
         databaseModule = (DatabaseModule) Application.getInstance().getModule(Application.buildModuleName(DatabaseModule.NAME, 0));
 
-        pointsRenderer = new MyRenderer(true, true, SIZE);
+        pointsRenderer = new CustomLineAndShapeRenderer(true, true, SIZE);
         pointsRenderer.setSeriesShape(0, CIRCLE);
         pointsRenderer.setSeriesPaint(0, LINE);
         pointsRenderer.setUseFillPaint(true);
@@ -61,11 +85,11 @@ public class StocksFrame extends MdiFrame {
         pointsRenderer.setSeriesOutlinePaint(0, LINE);
     }
 
-    private static class MyRenderer extends XYLineAndShapeRenderer {
+    private static final class CustomLineAndShapeRenderer extends XYLineAndShapeRenderer {
 
         private final List<Color> clut;
 
-        public MyRenderer(boolean lines, boolean shapes, int n) {
+        public CustomLineAndShapeRenderer(boolean lines, boolean shapes, int n) {
             super(lines, shapes);
             clut = new ArrayList<>(n);
             for (int i = 0; i < n; i++) {
@@ -77,6 +101,7 @@ public class StocksFrame extends MdiFrame {
         public Paint getItemFillPaint(int row, int column) {
             return clut.get(column);
         }
+
     }
 
     @Override

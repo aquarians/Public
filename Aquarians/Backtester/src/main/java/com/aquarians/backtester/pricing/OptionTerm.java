@@ -250,7 +250,7 @@ public class OptionTerm implements Comparable<OptionTerm> {
         return prev;
     }
 
-    private void computeModelError(PricingModel model, Ref<Double> totalError, double tolerance, Instrument instrument) {
+    private void computeModelError(PricingModel model, Ref<Double> totalError, double tolerance, Instrument instrument, double dstrike) {
         if (null == instrument) {
             return;
         }
@@ -284,14 +284,17 @@ public class OptionTerm implements Comparable<OptionTerm> {
             }
         }
 
-        totalError.value += error;
+        totalError.value += (error * dstrike) / spot;
     }
 
     public void computeModelError(PricingModel model, Ref<Double> totalError, double tolerance) {
+        Double prevStrike = null;
         for (Map.Entry<Double, OptionPair> entry : strikes.entrySet()) {
             OptionPair pair = entry.getValue();
-            computeModelError(model, totalError, tolerance, pair.put);
-            computeModelError(model, totalError, tolerance, pair.call);
+            double dstrike = (prevStrike != null) ? prevStrike - pair.strike : 0.0;
+            computeModelError(model, totalError, tolerance, pair.put, dstrike);
+            computeModelError(model, totalError, tolerance, pair.call, dstrike);
+            prevStrike = pair.strike;
         }
     }
 
@@ -612,17 +615,32 @@ public class OptionTerm implements Comparable<OptionTerm> {
         strikes = backupStrikes;
     }
 
-    public double getTotalParityArbitrage(VolatilitySurface surface) {
+    public double getTotalParityArbitrage(PricingModel model) {
         double total = 0.0;
-
-        VolatilitySurface.StrikeVols strikeVols = surface.getMaturities().get(daysToExpiry);
-        if (null == strikeVols) {
+        Double spot = model.getSpot();
+        if (null == spot) {
             return total;
         }
 
+        Double prevStrike = null;
         for (OptionPair pair : strikes.values()) {
+            Instrument instrument = new Instrument(Instrument.Type.PARITY, null, null, maturity, pair.strike);
+            PricingResult result = model.price(instrument);
+            if ((result != null) && (result.price > 0.0)) {
+                double dstrike = (prevStrike != null) ? (pair.strike - prevStrike) : 0.0;
+                total += (result.price * dstrike) / spot;
+            }
+
+            prevStrike = pair.strike;
         }
 
         return total;
     }
+
+    public double getTotalOptionArbitrage(PricingModel model) {
+        Ref<Double> totalError = new Ref<>(0.0);
+        computeModelError(model, totalError, 0.0);
+        return totalError.value;
+    }
+
 }

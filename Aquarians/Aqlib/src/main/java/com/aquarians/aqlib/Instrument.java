@@ -32,7 +32,8 @@ public class Instrument {
 
     public enum Type {
         STOCK,
-        OPTION
+        OPTION,
+        PARITY // "Call-Put" parity relationship
     }
 
     private final Type type;

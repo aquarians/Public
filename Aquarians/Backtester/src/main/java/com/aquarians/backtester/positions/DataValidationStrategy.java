@@ -61,11 +61,32 @@ public class DataValidationStrategy extends StrategyBuilder {
             }
         }
 
+        // Relative difference between spot and forward
+        Double spot = pricingModule.getSpotPrice();
+        double spot_fwd_diff = 0.0;
+        if ((spot != null) && (fwd != null)) {
+            spot_fwd_diff = Math.abs(spot - fwd) / Math.max(spot, Util.MINIMUM_PRICE);
+        }
+
+        // Arbitrage opportunities arising from call-put parity violations
+        double parity_total = pricingModule.getTotalParityArbitrage();
+
+        // Arbitrage opportunities arising from options mispricing
+        double option_total = pricingModule.getTotalOptionArbitrage();
+
         databaseModule.getProcedures().stockPriceUpdate.execute(pricingModule.getUnderlier().id, pricingModule.getToday(), fwd, vol);
+        databaseModule.getProcedures().statisticsInsert.execute(pricingModule.getUnderlier().id, pricingModule.getToday(),
+                spot_fwd_diff, parity_total, option_total);
+
         logger.debug("Update day=" + pricingModule.getToday() +
                 " und=" + pricingModule.getUnderlier().code +
+                " spt=" + Util.format(spot) +
                 " fwd=" + Util.format(fwd) +
-                " vol=" + Util.format(vol != null ? vol * 100.0 : null) + "%");
+                " vol=" + Util.format(vol != null ? vol * 100.0 : null) + "%" +
+                " spot_fwd_diff=" + Util.format(spot_fwd_diff * 100.0) +
+                " parity_total=" + Util.format(parity_total * 100.0) +
+                " option_total=" + Util.format(option_total * 100.0)
+        );
 
         return null;
     }

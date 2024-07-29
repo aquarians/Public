@@ -80,6 +80,9 @@ public class Procedures extends DbProcedures {
     public final NavSelectUnderliers navSelectUnderliers;
     public final NavSelectByUnderlier navSelectByUnderlier;
     public final NavSelectByNullUnderlier navSelectByNullUnderlier;
+    public final StatisticsInsert statisticsInsert;
+    public final StatisticsSelect statisticsSelect;
+    public final StatisticsDelete statisticsDelete;
 
     public Procedures(Connection connection) {
         super(connection);
@@ -128,5 +131,8 @@ public class Procedures extends DbProcedures {
         navSelectUnderliers = addProcedure(new NavSelectUnderliers(connection));
         navSelectByUnderlier = addProcedure(new NavSelectByUnderlier(connection));
         navSelectByNullUnderlier = addProcedure(new NavSelectByNullUnderlier(connection));
+        statisticsInsert = addProcedure(new StatisticsInsert(connection));
+        statisticsSelect = addProcedure(new StatisticsSelect(connection));
+        statisticsDelete = addProcedure(new StatisticsDelete(connection));
     }
 }

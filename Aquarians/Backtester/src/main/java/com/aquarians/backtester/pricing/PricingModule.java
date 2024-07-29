@@ -501,16 +501,49 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
     public double getTotalParityArbitrage() {
         double total = 0.0;
 
-        VolatilitySurface surface = getVolatilitySurface();
-        if (null == surface) {
+        PricingModel model = getPricingModel(PricingModel.Type.Implied);
+        if (null == model) {
             return total;
         }
 
         for (OptionTerm term : optionTerms.values()) {
-            total += term.getTotalParityArbitrage(surface);
+            total += term.getTotalParityArbitrage(model);
         }
 
         return total;
+    }
+
+    public double getTotalOptionArbitrage() {
+        double total = 0.0;
+
+        PricingModel model = getPricingModel();
+        if (null == model) {
+            return total;
+        }
+
+        for (OptionTerm term : optionTerms.values()) {
+            total += term.getTotalOptionArbitrage(model);
+        }
+
+        return total;
+    }
+
+    public Double getForward(int maturity) {
+        VolatilitySurface surface = getVolatilitySurface();
+        if (null == surface) {
+            return null;
+        }
+
+        VolatilitySurface.StrikeVols strikeVols = surface.getMaturities().get(maturity);
+        if (null == strikeVols) {
+            return null;
+        }
+
+        return strikeVols.forward;
+    }
+
+    double getBorrowRate() {
+        return borrowRate;
     }
 
 }

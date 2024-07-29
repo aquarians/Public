@@ -25,6 +25,7 @@
 package com.aquarians.backtester.gui;
 
 import com.aquarians.aqlib.Day;
+import com.aquarians.aqlib.Instrument;
 import com.aquarians.aqlib.OptionPair;
 import com.aquarians.aqlib.models.PricingResult;
 import com.aquarians.aqlib.Util;
@@ -53,6 +54,7 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
 
     private static final String DAY_LABEL = "Day: ";
     private static final String SPOT_LABEL = "Spot: ";
+    private static final String FORWARD_LABEL = "Fwd: ";
     private static final String MATURITY_LABEL = "Maturity: ";
 
     public static final Color ODD_ROW_BACKGROUND_COLOR = new Color(0xCC, 0xCC, 0xCC);
@@ -66,9 +68,11 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
     private JComboBox<Day> termsCombo;
     private JLabel dayLabel = new JLabel(DAY_LABEL);
     private JLabel spotLabel = new JLabel(SPOT_LABEL);
+    private JLabel forwardLabel = new JLabel(SPOT_LABEL);
     private JLabel maturityLabel = new JLabel(MATURITY_LABEL);
     private OptionsTableModel model;
     private JTable table;
+    private Map<Day, Double> forwards = new TreeMap<>();
 
     public OptionsFrame(MainFrame owner) {
         super(NAME, owner);
@@ -77,12 +81,12 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
 
     @Override
     public void processPricingUpdate() {
-        final Map<Day, List<OptionsTableRow>> terms = extractTerms();
+        final GuiData data = extractGuiData();
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
                 try {
-                    updateModel(pricingModule.getToday(), pricingModule.getSpotPrice(), terms);
+                    updateModel(data);
                 } catch (Exception ex) {
                     logger.warn(ex.getMessage(), ex);
                 }
@@ -90,17 +94,27 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
         });
     }
 
-    private Map<Day, List<OptionsTableRow>> extractTerms() {
-        Map<Day, List<OptionsTableRow>> guiTerms = new TreeMap<>();
-
-        for (Map.Entry<Day, OptionTerm> entry : pricingModule.getOptionTerms().entrySet()) {
-            extractTerm(entry.getKey(), entry.getValue(), guiTerms);
-        }
-
-        return guiTerms;
+    private static final class GuiData {
+        Day today;
+        Double spot;
+        Map<Day, List<OptionsTableRow>> terms = new TreeMap<>();
+        Map<Day, Double> forwards = new TreeMap<>();
     }
 
-    private void extractTerm(Day maturity, OptionTerm optionTerm, Map<Day, List<OptionsTableRow>> guiTerms) {
+    private GuiData extractGuiData() {
+        GuiData data = new GuiData();
+
+        data.today = pricingModule.getToday();
+        data.spot = pricingModule.getSpotPrice();
+
+        for (Map.Entry<Day, OptionTerm> entry : pricingModule.getOptionTerms().entrySet()) {
+            extractTerm(entry.getKey(), entry.getValue(), data.terms, data.forwards);
+        }
+
+        return data;
+    }
+
+    private void extractTerm(Day maturity, OptionTerm optionTerm, Map<Day, List<OptionsTableRow>> guiTerms, Map<Day, Double> forwards) {
         List<OptionsTableRow> rows = new ArrayList<>(optionTerm.getStrikes().size() * 2);
         guiTerms.put(maturity, rows);
 
@@ -148,14 +162,25 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
 
             boolean atm = (null != atmStrike) && (Math.abs(atmStrike - pair.strike) < Util.ZERO);
 
+            double parityPrice = 0.0;
+            Instrument parityInstrument = new Instrument(Instrument.Type.PARITY, null, null, optionTerm.maturity, pair.strike);
+            PricingResult parityResult = pricingModule.getPricingModel().price(parityInstrument);
+            if (parityResult != null) {
+                parityPrice = parityResult.price;
+            }
+
             OptionsTableRow row = new OptionsTableRow(pair.strike,
                     callValue, callBid, callAsk,
                     putValue, putBid, putAsk,
                     (rows.size() % 2 == 0) ? EVEN_ROW_BACKGROUND_COLOR : ODD_ROW_BACKGROUND_COLOR,
-                    atm);
+                    atm,
+                    parityPrice);
 
             rows.add(row);
         }
+
+        Double forward = pricingModule.getForward(optionTerm.daysToExpiry);
+        forwards.put(optionTerm.maturity, forward);
     }
 
     @Override
@@ -218,6 +243,9 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
         topPanel.add(spotLabel);
 
         topPanel.add(new JSeparator(SwingConstants.VERTICAL));
+        topPanel.add(forwardLabel);
+
+        topPanel.add(new JSeparator(SwingConstants.VERTICAL));
         topPanel.add(maturityLabel);
     }
 
@@ -246,20 +274,29 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
                 int maturity = model.getDay().countTradingDays(selectedMaturity);
                 maturityLabel.setText(MATURITY_LABEL + maturity + " days");
             }
+
+            Double forward = forwards.get(selectedMaturity);
+            if (forward != null) {
+                forwardLabel.setText(FORWARD_LABEL + Util.format(forward));
+            } else {
+                forwardLabel.setText(FORWARD_LABEL);
+            }
         }
     }
 
-    private void updateModel(Day day, Double spot, Map<Day, List<OptionsTableRow>> terms) {
+    private void updateModel(GuiData data) {
+        this.forwards = data.forwards;
+
         // day
-        if (null != day) {
-            dayLabel.setText(DAY_LABEL + day);
+        if (null != data.today) {
+            dayLabel.setText(DAY_LABEL + data.today);
         } else {
             dayLabel.setText(DAY_LABEL);
         }
 
         // spot
-        if (null != spot) {
-            spotLabel.setText(SPOT_LABEL + PRICE_FORMAT.format(spot));
+        if (null != data.spot) {
+            spotLabel.setText(SPOT_LABEL + Util.format(data.spot));
         } else {
             spotLabel.setText(SPOT_LABEL);
         }
@@ -271,7 +308,7 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
         }
         termsCombo.removeAllItems();
 
-        List<Day> maturities = new ArrayList<>(terms.keySet());
+        List<Day> maturities = new ArrayList<>(data.terms.keySet());
         for (Day maturity : maturities) {
             termsCombo.addItem(maturity);
         }
@@ -281,14 +318,19 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
         }
 
         Day selectedMaturity = (maturities.size() > 0) ? maturities.get(selected) : null;
-        if ((null != day) && (null != selectedMaturity)) {
-            int maturity = day.countTradingDays(selectedMaturity);
+        forwardLabel.setText(FORWARD_LABEL);
+        if ((null != data.today) && (null != selectedMaturity)) {
+            int maturity = data.today.countTradingDays(selectedMaturity);
             maturityLabel.setText(MATURITY_LABEL + maturity + " days");
+            Double forward = forwards.get(selectedMaturity);
+            if (forward != null) {
+                forwardLabel.setText(FORWARD_LABEL + Util.format(forward));
+            }
         }
 
         // options
-        model.setDay(day);
-        model.setTerms(terms);
+        model.setDay(data.today);
+        model.setTerms(data.terms);
         model.selectMaturity(selectedMaturity);
     }
 

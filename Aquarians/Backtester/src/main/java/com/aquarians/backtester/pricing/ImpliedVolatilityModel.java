@@ -44,6 +44,14 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
 
     @Override
     public PricingResult price(Instrument instrument) {
+        if (instrument.getType().equals(Instrument.Type.STOCK)) {
+            return super.price(instrument);
+        } else if (instrument.getType().equals(Instrument.Type.PARITY)) {
+            return priceParity(instrument);
+        } else if (!instrument.getType().equals(Instrument.Type.OPTION)) {
+            throw new RuntimeException("Unknown instrument type: " + instrument.getType().name());
+        }
+
         if ((null == today) || (null == surface)) {
             return null;
         }
@@ -174,5 +182,55 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
 
     public void setHedgeFrequency(int hedgeFrequency) {
         this.hedgeFrequency = hedgeFrequency;
+    }
+
+    private PricingResult priceParity(Instrument instrument) {
+        if ((null == today) || (null == surface)) {
+            return null;
+        }
+
+        int maturity = today.countTradingDays(instrument.getMaturity());
+        VolatilitySurface.StrikeVols strikeVols = surface.getMaturities().get(maturity);
+        if ((null == strikeVols) || (null == strikeVols.forward)) {
+            return null;
+        }
+
+        double interestRate = (strikeVols.interest != null) ? strikeVols.interest : 0.0;
+        double totalRate = interestRate + owner.getBorrowRate();
+
+        OptionTerm term = owner.getOptionTerms().get(instrument.getMaturity());
+        if (null == term) {
+            return null;
+        }
+
+        double borrow = strikeVols.forward * (Math.exp(totalRate * term.yf) - 1.0);
+
+        OptionPair pair = term.strikes.get(instrument.getStrike());
+        if ((null == pair) || (null == pair.call) || (null == pair.put)) {
+            return null;
+        }
+
+        // Buy call, sell put
+        Double pnlBuy = null;
+        Double ca = pair.call.getAskPrice();
+        Double pb = pair.put.getBidPrice();
+        if ((ca != null) && (pb != null)) {
+            pnlBuy = strikeVols.forward - pair.strike - ca + pb - borrow;
+        }
+
+        // Sell call, buy put
+        Double pnlSell = null;
+        Double cb = pair.call.getBidPrice();
+        Double pa = pair.put.getAskPrice();
+        if ((cb != null) && (pa != null)) {
+            pnlSell = pair.strike - strikeVols.forward + cb - pa - borrow;
+        }
+
+        double pnl = (pnlBuy != null) ? pnlBuy : 0.0;
+        if ((pnlSell != null) && (pnlSell > pnl)) {
+            pnl = pnlSell;
+        }
+
+        return new PricingResult(pnl, 1.0);
     }
 }

@@ -1,7 +1,7 @@
 /*
     MIT License
 
-    Copyright (c) 2020 Mihai Bunea
+    Copyright (c) 2024 Mihai Bunea
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
@@ -22,35 +22,27 @@
     SOFTWARE.
 */
 
-package com.aquarians.backtester.gui;
+package com.aquarians.backtester.database.procedures;
 
-import java.awt.*;
-import java.text.DecimalFormat;
+import com.aquarians.aqlib.database.DbStatement;
 
-public class StrikeColumn extends OptionsTableColumn {
+import java.sql.Connection;
 
-    private static final DecimalFormat FORMAT = new DecimalFormat("###.####");
+public class StatisticsDelete extends DbStatement {
 
-    public StrikeColumn() {
-        super("Strike");
+    private static final String SQL_STATEMENT = "DELETE FROM statistics";
+
+    public StatisticsDelete(Connection connection) {
+        super(connection);
     }
 
-    public Object getValue(OptionsTableRow row) {
-        return FORMAT.format(row.getStrike());
+    @Override
+    public String getSqlStatement() {
+        return SQL_STATEMENT;
     }
 
-    public Color getBackgroundColor(OptionsTableRow row) {
-        if (row.isAtm()) {
-            if (row.getParityPrice() > 0.0) {
-                return OptionsFrame.PRICE_HIGHIGHT_BACKGROUND_COLOR;
-            }
-            return OptionsFrame.SPOT_ROW_BACKGROUND_COLOR;
-        }
-
-        if (row.getParityPrice() > 0.0) {
-            return OptionsFrame.PRICE_HIGHIGHT_BACKGROUND_COLOR;
-        }
-        return OptionsFrame.STRIKE_COLUMN_BACKGROUND_COLOR;
+    public void execute() {
+        super.executeUpdate();
     }
 
 }
