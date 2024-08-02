@@ -38,9 +38,15 @@ public class OptionsTableRow {
     private final Color backgroundColor;
     private final boolean atm;
     private final double parityPrice;
+    // Amount of PNL if an arbitrage opportunity exists
+    private final double callBidPnl;
+    private final double callAskPnl;
+    private final double putBidPnl;
+    private final double putAskPnl;
 
     public OptionsTableRow(Double strike, Double callValue, Double callBid, Double callAsk, Double putValue,
-                           Double putBid, Double putAsk, Color backgroundColor, boolean atm, double parityPrice) {
+                           Double putBid, Double putAsk, Color backgroundColor, boolean atm, double parityPrice,
+                           double callBidPnl, double callAskPnl, double putBidPnl, double putAskPnl) {
         this.strike = strike;
         this.callValue = callValue;
         this.callBid = callBid;
@@ -51,6 +57,10 @@ public class OptionsTableRow {
         this.backgroundColor = backgroundColor;
         this.atm = atm;
         this.parityPrice = parityPrice;
+        this.callBidPnl = callBidPnl;
+        this.callAskPnl = callAskPnl;
+        this.putBidPnl = putBidPnl;
+        this.putAskPnl = putAskPnl;
     }
 
     public Double getStrike() {
@@ -91,5 +101,21 @@ public class OptionsTableRow {
 
     public double getParityPrice() {
         return parityPrice;
+    }
+
+    public double getCallBidPnl() {
+        return callBidPnl;
+    }
+
+    public double getCallAskPnl() {
+        return callAskPnl;
+    }
+
+    public double getPutBidPnl() {
+        return putBidPnl;
+    }
+
+    public double getPutAskPnl() {
+        return putAskPnl;
     }
 }

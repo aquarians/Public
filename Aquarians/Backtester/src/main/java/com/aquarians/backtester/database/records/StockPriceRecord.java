@@ -82,7 +82,9 @@ public class StockPriceRecord implements Comparable<StockPriceRecord> {
     public static List<PriceRecord> toPriceRecords(List<StockPriceRecord> stocks) {
         List<PriceRecord> prices = new ArrayList<>(stocks.size());
         for (StockPriceRecord stock : stocks) {
-            prices.add(new PriceRecord(stock.day, stock.close));
+            if (stock.close != null) {
+                prices.add(new PriceRecord(stock.day, stock.close));
+            }
         }
         return prices;
     }

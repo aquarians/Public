@@ -45,20 +45,9 @@ public class BidColumn extends OptionsTableColumn {
     }
 
     public Color getBackgroundColor(OptionsTableRow row) {
-        Double price = isCall ? row.getCallBid() : row.getPutBid();
-        if (null == price) {
-            // Show default color
-            return super.getBackgroundColor(row);
-        }
-
-        Double value = isCall ? row.getCallValue() : row.getPutValue();
-        if (null == value) {
-            // Show default color
-            return super.getBackgroundColor(row);
-        }
-
         // Check if there's an arbitrage opportunity
-        if (price > value) {
+        double pnl = isCall ? row.getCallBidPnl() : row.getPutBidPnl();
+        if (pnl > 0.0) {
             return OptionsFrame.PRICE_HIGHIGHT_BACKGROUND_COLOR;
         }
 

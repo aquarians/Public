@@ -34,15 +34,15 @@ import java.util.List;
 
 public class StatisticsSelect extends DbStatement {
 
-    private static final String SQL_STATEMENT = "SELECT day, spot_fwd_diff, parity_total, arbitrage_total " +
+    private static final String SQL_STATEMENT = "SELECT day, spot_fwd_diff, parity_total, option_total " +
             "FROM statistics " +
             "WHERE underlier = ? AND day >= ? AND day <= ?";
 
     public static final class Record {
-        final Day day;
-        final Double spot_fwd_diff;
-        final Double parity_total;
-        final Double option_total;
+        public final Day day;
+        public final Double spot_fwd_diff;
+        public final Double parity_total;
+        public final Double option_total;
 
         public Record(Day day, Double spotFwdDiff, Double parityTotal, Double optionTotal) {
             this.day = day;

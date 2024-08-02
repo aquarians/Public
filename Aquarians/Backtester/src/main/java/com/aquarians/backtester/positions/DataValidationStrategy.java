@@ -69,10 +69,10 @@ public class DataValidationStrategy extends StrategyBuilder {
         }
 
         // Arbitrage opportunities arising from call-put parity violations
-        double parity_total = pricingModule.getTotalParityArbitrage();
+        double parity_total = pricingModule.getMaxParityArbitrageReturn();
 
         // Arbitrage opportunities arising from options mispricing
-        double option_total = pricingModule.getTotalOptionArbitrage();
+        double option_total = pricingModule.getMaxOptionArbitrageReturn();
 
         databaseModule.getProcedures().stockPriceUpdate.execute(pricingModule.getUnderlier().id, pricingModule.getToday(), fwd, vol);
         databaseModule.getProcedures().statisticsInsert.execute(pricingModule.getUnderlier().id, pricingModule.getToday(),

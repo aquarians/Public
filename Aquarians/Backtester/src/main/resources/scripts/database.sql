@@ -180,3 +180,19 @@ CREATE TABLE nav
 
 CREATE INDEX ix_nav_strategy_type_day ON nav(strategy_type, day);
 CREATE UNIQUE INDEX ix_nav_strategy_type_day_underlier ON nav(strategy_type, day, underlier);
+
+-- Data validation query
+--select
+--  u.code,
+--	sum(s.spot_fwd_diff) as sum_spot_fwd_diff,
+--	sum(s.parity_total) as sum_parity_total,
+--	sum(s.option_total) as sum_option_total
+--from
+--	statistics s,
+--	underliers u
+--where
+--	s.underlier = u.id
+--group by
+--	u.code
+--order by
+--	sum_spot_fwd_diff;

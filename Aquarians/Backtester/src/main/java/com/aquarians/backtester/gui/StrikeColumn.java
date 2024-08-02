@@ -31,12 +31,34 @@ public class StrikeColumn extends OptionsTableColumn {
 
     private static final DecimalFormat FORMAT = new DecimalFormat("###.####");
 
+    private static final String STRIKE = "Strike";
+    private static final String PARITY = "Parity";
+
+    public enum Type {
+        Strike,
+        Parity
+    }
+
+    private Type type = Type.Strike;
+
     public StrikeColumn() {
-        super("Strike");
+        super(STRIKE);
+    }
+
+    public void setType(Type type) {
+        this.type = type;
     }
 
     public Object getValue(OptionsTableRow row) {
-        return FORMAT.format(row.getStrike());
+        if (type.equals(Type.Strike)) {
+            return FORMAT.format(row.getStrike());
+        }
+
+        if (type.equals(Type.Parity)) {
+            return FORMAT.format(row.getParityPrice());
+        }
+
+        return "";
     }
 
     public Color getBackgroundColor(OptionsTableRow row) {
@@ -53,4 +75,25 @@ public class StrikeColumn extends OptionsTableColumn {
         return OptionsFrame.STRIKE_COLUMN_BACKGROUND_COLOR;
     }
 
+    public String getName() {
+        switch (type) {
+            case Strike:
+                return STRIKE;
+            case Parity:
+                return PARITY;
+        }
+
+        return super.getName();
+    }
+
+    public void toggleType() {
+        switch (type) {
+            case Strike:
+                type = Type.Parity;
+                break;
+            case Parity:
+                type = Type.Strike;
+                break;
+        }
+    }
 }

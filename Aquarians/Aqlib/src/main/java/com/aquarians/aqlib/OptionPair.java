@@ -47,6 +47,16 @@ public class OptionPair implements Comparable<OptionPair> {
         }
     }
 
+    public boolean isEmpty() {
+        Double callPrice = (call != null) ? call.getPrice() : null;
+        Double putPrice = (put != null) ? put.getPrice() : null;
+        if ((callPrice != null) || (putPrice != null)) {
+            return false;
+        }
+
+        return true;
+    }
+
     @Override
     public String toString() {
         String text = Double.toString(strike);

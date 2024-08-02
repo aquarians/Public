@@ -24,19 +24,19 @@
 
 package com.aquarians.backtester.gui;
 
-import com.aquarians.aqlib.Day;
-import com.aquarians.aqlib.Instrument;
-import com.aquarians.aqlib.OptionPair;
+import com.aquarians.aqlib.*;
 import com.aquarians.aqlib.models.PricingResult;
-import com.aquarians.aqlib.Util;
 import com.aquarians.backtester.Application;
 import com.aquarians.backtester.pricing.*;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -135,14 +135,24 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
         for (Map.Entry<Double, OptionPair> entry : optionTerm.getStrikes().entrySet()) {
             OptionPair pair = entry.getValue();
 
+            if (optionTerm.maturity.equals(new Day("2008-Sep-19")) && pricingModule.getToday().equals(new Day("2008-Jan-24")) &&
+            Util.doubleEquals(pair.strike, 175.0)) {
+                int debug = 0;
+            }
+
             Double callValue = null;
             Double callBid = null;
             Double callAsk = null;
+            double callBidPnl = 0.0;
+            double callAskPnl = 0.0;
             if (pair.call != null) {
                 PricingModel model = pricingModule.getPricingModel();
                 PricingResult result = model.price(pair.call);
                 if (null != result) {
                     callValue = result.price;
+                    Pair<Double, Double> pnls = pricingModule.getExpectedPnl(pair.call, result.price);
+                    callBidPnl = pnls.getKey();
+                    callAskPnl = pnls.getValue();
                 }
                 callBid = pair.call.getBidPrice();
                 callAsk = pair.call.getAskPrice();
@@ -151,10 +161,15 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
             Double putValue = null;
             Double putBid = null;
             Double putAsk = null;
+            double putBidPnl = 0.0;
+            double putAskPnl = 0.0;
             if (pair.put != null) {
                 PricingResult result = pricingModule.getPricingModel().price(pair.put);
                 if (null != result) {
                     putValue = result.price;
+                    Pair<Double, Double> pnls = pricingModule.getExpectedPnl(pair.put, result.price);
+                    putBidPnl = pnls.getKey();
+                    putAskPnl = pnls.getValue();
                 }
                 putBid = pair.put.getBidPrice();
                 putAsk = pair.put.getAskPrice();
@@ -174,7 +189,9 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
                     putValue, putBid, putAsk,
                     (rows.size() % 2 == 0) ? EVEN_ROW_BACKGROUND_COLOR : ODD_ROW_BACKGROUND_COLOR,
                     atm,
-                    parityPrice);
+                    parityPrice,
+                    callBidPnl, callAskPnl,
+                    putBidPnl, putAskPnl);
 
             rows.add(row);
         }
@@ -263,6 +280,9 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
         parent.add(scrollPane, bottomConstraints);
 
         table.setDefaultRenderer(Object.class, new OptionsTableCellRenderer(model));
+
+        JTableHeader header = table.getTableHeader();
+        header.addMouseListener(new TableHeaderMouseListener());
     }
 
     private void processItemStateChanged(ItemEvent event) {
@@ -332,6 +352,24 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
         model.setDay(data.today);
         model.setTerms(data.terms);
         model.selectMaturity(selectedMaturity);
+    }
+
+    class TableHeaderMouseListener extends MouseAdapter {
+
+        public void mouseClicked(MouseEvent event) {
+            Point point = event.getPoint();
+            int index = table.columnAtPoint(point);
+            OptionsTableColumn column = model.getColumn(index);
+            if (null == column) {
+                return;
+            }
+
+            if (column instanceof StrikeColumn) {
+                StrikeColumn strikeColumn = (StrikeColumn) column;
+                strikeColumn.toggleType();
+                model.fireTableStructureChanged();
+            }
+        }
     }
 
 }

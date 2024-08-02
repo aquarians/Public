@@ -51,6 +51,14 @@ public class OptionsTableModel extends AbstractTableModel {
         columns.add(new AskColumn(false));
     }
 
+    OptionsTableColumn getColumn(int index) {
+        if ((index < 0) || (index >= columns.size())) {
+            return null;
+        }
+
+        return columns.get(index);
+    }
+
     public Color getBackgroundColorAt(int rowIndex, int columnIndex) {
         OptionsTableRow row = activeRows.get(rowIndex);
         OptionsTableColumn column = columns.get(columnIndex);

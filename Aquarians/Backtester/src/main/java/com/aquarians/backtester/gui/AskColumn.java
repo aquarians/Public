@@ -45,20 +45,9 @@ public class AskColumn extends OptionsTableColumn {
     }
 
     public Color getBackgroundColor(OptionsTableRow row) {
-        Double price = isCall ? row.getCallAsk() : row.getPutAsk();
-        if (null == price) {
-            // Show default color
-            return super.getBackgroundColor(row);
-        }
-
-        Double value = isCall ? row.getCallValue() : row.getPutValue();
-        if (null == value) {
-            // Show default color
-            return super.getBackgroundColor(row);
-        }
-
         // Check if there's an arbitrage opportunity
-        if (price < value) {
+        double pnl = isCall ? row.getCallAskPnl() : row.getPutAskPnl();
+        if (pnl > 0.0) {
             return OptionsFrame.PRICE_HIGHIGHT_BACKGROUND_COLOR;
         }
 

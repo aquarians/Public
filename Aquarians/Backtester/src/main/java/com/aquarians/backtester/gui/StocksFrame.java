@@ -30,6 +30,7 @@ import com.aquarians.aqlib.Util;
 import com.aquarians.aqlib.math.PriceRecord;
 import com.aquarians.backtester.Application;
 import com.aquarians.backtester.database.DatabaseModule;
+import com.aquarians.backtester.database.procedures.StatisticsSelect;
 import com.aquarians.backtester.database.records.StockPriceRecord;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
@@ -40,8 +41,7 @@ import org.jfree.data.time.TimeSeriesCollection;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.awt.event.*;
 import java.awt.geom.Ellipse2D;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,6 +54,12 @@ public class StocksFrame extends MdiFrame {
 
     public static final String NAME = "Stocks";
 
+    private static final String CONTENT_CLOSE_PRICE = "Close Price";
+    private static final String CONTENT_FORWARD_PRICE = "Forward Price";
+    private static final String CONTENT_CLOSE_FWD_DIFF = "Close-Fwd-Diff";
+    private static final String CONTENT_PARITY_ARB = "Parity Arb";
+    private static final String CONTENT_OPTION_ARB = "Option Arb";
+
     private static final Shape CIRCLE = new Ellipse2D.Double(-3, -3, 6, 6);
     private static final Color LINE = Color.gray;
     private static final int SIZE = 10000;
@@ -61,6 +67,7 @@ public class StocksFrame extends MdiFrame {
     private final DatabaseModule databaseModule;
 
     private JTextField codeField;
+    private JComboBox<String> contentCombo;
     private JTextField startDayField;
     private JTextField endDayField;
     private JCheckBox adjustedCheckBox;
@@ -133,6 +140,19 @@ public class StocksFrame extends MdiFrame {
         codeField = new JTextField(10);
         panel.add(codeField);
 
+        panel.add(new JLabel("Content:"));
+        String[] contentStrings = { CONTENT_CLOSE_PRICE, CONTENT_FORWARD_PRICE, CONTENT_CLOSE_FWD_DIFF,
+                CONTENT_PARITY_ARB, CONTENT_OPTION_ARB };
+        contentCombo = new JComboBox<>(contentStrings);
+        contentCombo.setSelectedIndex(0);
+        panel.add(contentCombo);
+        contentCombo.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                reloadStock();
+            }
+        });
+
         panel.add(new JSeparator());
         panel.add(new JLabel("Start Day (DD-MMM-YYY):"));
         startDayField = new JTextField(10);
@@ -166,22 +186,27 @@ public class StocksFrame extends MdiFrame {
         loadButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                final String code = codeField.getText();
-                final String startDay = startDayField.getText();
-                final String endDay = endDayField.getText();
-                final boolean adjusted = adjustedCheckBox.isSelected();
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            loadStock(code, startDay, endDay, adjusted);
-                        } catch (Exception ex) {
-                            logger.warn("Error loading stock", ex);
-                        }
-                    }
-                }).start();
+                reloadStock();
             }
         });
+    }
+
+    private void reloadStock() {
+        final String code = codeField.getText();
+        final String startDay = startDayField.getText();
+        final String endDay = endDayField.getText();
+        final boolean adjusted = adjustedCheckBox.isSelected();
+        final String content = getContent();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    loadStock(code, content, startDay, endDay, adjusted);
+                } catch (Exception ex) {
+                    logger.warn("Error loading stock", ex);
+                }
+            }
+        }).start();
     }
 
     private void initCentralPane(JPanel parent) {
@@ -194,7 +219,52 @@ public class StocksFrame extends MdiFrame {
         parent.add(chartPanel, BorderLayout.CENTER);
     }
 
-    private void loadStock(String code, String startDay, String endDay, boolean adjusted) {
+    private List<PriceRecord> loadRecords(String content, Long id, Day from, Day to) {
+        if (content.equals(CONTENT_CLOSE_PRICE)) {
+            List<StockPriceRecord> stocks =  databaseModule.getProcedures().stockPricesSelect.execute(id, from, to);
+            return StockPriceRecord.toPriceRecords(stocks);
+        } else if (content.equals(CONTENT_FORWARD_PRICE)) {
+            List<StockPriceRecord> stocks =  databaseModule.getProcedures().stockPricesSelect.execute(id, from, to);
+            List<PriceRecord> records = new ArrayList<>(stocks.size());
+            for (StockPriceRecord stock : stocks) {
+                if (stock.implied != null) {
+                    records.add(new PriceRecord(stock.day, stock.implied));
+                }
+            }
+            return records;
+        } else if (content.equals(CONTENT_CLOSE_FWD_DIFF)) {
+            List<StatisticsSelect.Record> stats = databaseModule.getProcedures().statisticsSelect.execute(id, from, to);
+            List<PriceRecord> records = new ArrayList<>(stats.size());
+            for (StatisticsSelect.Record stat : stats) {
+                if (stat.spot_fwd_diff != null) {
+                    records.add(new PriceRecord(stat.day, stat.spot_fwd_diff));
+                }
+            }
+            return records;
+        } else if (content.equals(CONTENT_PARITY_ARB)) {
+            List<StatisticsSelect.Record> stats = databaseModule.getProcedures().statisticsSelect.execute(id, from, to);
+            List<PriceRecord> records = new ArrayList<>(stats.size());
+            for (StatisticsSelect.Record stat : stats) {
+                if (stat.parity_total != null) {
+                    records.add(new PriceRecord(stat.day, stat.parity_total));
+                }
+            }
+            return records;
+        } else if (content.equals(CONTENT_OPTION_ARB)) {
+            List<StatisticsSelect.Record> stats = databaseModule.getProcedures().statisticsSelect.execute(id, from, to);
+            List<PriceRecord> records = new ArrayList<>(stats.size());
+            for (StatisticsSelect.Record stat : stats) {
+                if (stat.parity_total != null) {
+                    records.add(new PriceRecord(stat.day, stat.option_total));
+                }
+            }
+            return records;
+        }
+
+        return new ArrayList<>();
+    }
+
+    private void loadStock(String code, String content, String startDay, String endDay, boolean adjusted) {
         logger.debug("Loading stock: " + code);
 
         Long id = databaseModule.getProcedures().underlierSelect.execute(code);
@@ -235,8 +305,7 @@ public class StocksFrame extends MdiFrame {
             });
         }
 
-        List<StockPriceRecord> ohlcRecords =  databaseModule.getProcedures().stockPricesSelect.execute(id, from, to);
-        List<PriceRecord> records = StockPriceRecord.toPriceRecords(ohlcRecords);
+        List<PriceRecord> records = loadRecords(content, id, from, to);
         logger.debug("Found " + records.size() + " records for stock " + code + " from " + from + " to " + to);
 
         if (adjusted) {
@@ -274,4 +343,12 @@ public class StocksFrame extends MdiFrame {
         chartPanel.repaint();
     }
 
+    private String getContent() {
+        int index = contentCombo.getSelectedIndex();
+        if (index < 0) {
+            return CONTENT_CLOSE_PRICE;
+        }
+
+        return contentCombo.getItemAt(index);
+    }
 }

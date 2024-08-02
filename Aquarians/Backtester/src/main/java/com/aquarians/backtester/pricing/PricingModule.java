@@ -50,9 +50,9 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
     private final DatabaseModule databaseModule;
     private final TreeMap<Day, OptionTerm> optionTerms = new TreeMap<>();
     private PricingModel.Type activeModel;
-    private final double tolerance;
     private final double borrowRate;
     private final boolean validatePrices;
+    private final boolean ensureFullSpread;
     private List<PricingModel> pricingModels = new ArrayList<>();
     private Map<String, Instrument> instruments = new TreeMap<>();
     private Map<Day, Double> interestRates = new HashMap<>();
@@ -68,8 +68,8 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         // Because we do multithreaded operations, each pricing module needs other modules of the same index
         databaseModule = (DatabaseModule) Application.getInstance().getModule(Application.buildModuleName(DatabaseModule.NAME, index));
         activeModel = PricingModel.Type.valueOf(Application.getInstance().getProperties().getProperty("Pricing.ActiveModel", PricingModel.Type.Market.name()));
-        tolerance = Double.parseDouble(Application.getInstance().getProperties().getProperty("Pricing.Tolerance", "0"));
         validatePrices = Boolean.parseBoolean(Application.getInstance().getProperties().getProperty("Pricing.ValidatePrices", "false"));
+        ensureFullSpread = Boolean.parseBoolean(Application.getInstance().getProperties().getProperty("Pricing.EnsureFullSpread", "false"));
         borrowRate = Double.parseDouble(Application.getInstance().getProperties().getProperty("Pricing.BorrowRate", "0"));
 
         loadInterestRates();
@@ -118,6 +118,10 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
     private void recalculateAndNotify() {
         fitModels();
         notifyListeners();
+
+        // HACK
+        logger.debug("getMaxParityArbitrageReturn=" + Util.format(getMaxParityArbitrageReturn()));
+        logger.debug("getMaxOptionArbitrageReturn=" + Util.format(getMaxOptionArbitrageReturn()));
     }
 
     public Instrument getInstrument(String code) {
@@ -167,7 +171,7 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
             } else if (instrument.getType().equals(Instrument.Type.OPTION)) {
                 OptionTerm term = optionTerms.get(instrument.getMaturity());
                 if (null == term) {
-                    term = new OptionTerm(today, instrument.getMaturity());
+                    term = new OptionTerm(this, today, instrument.getMaturity());
                     optionTerms.put(instrument.getMaturity(), term);
                 }
 
@@ -176,6 +180,17 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         }
 
         validatePrices();
+        ensureFullSpread();
+    }
+
+    void ensureFullSpread() {
+        if (!ensureFullSpread) {
+            return;
+        }
+
+        for (OptionTerm term : optionTerms.values()) {
+            term.ensureFullSpread();
+        }
     }
 
     private void validatePrices() {
@@ -218,154 +233,10 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
                 logger.warn("Underlier: " + underlier.code + " day: " + today + " model: " + model.getType(), ex);
             }
         }
-
-        //computeModelError();
-    }
-
-    private void computeModelError() {
-        PricingModel model = getPricingModel();
-        if (null == model) {
-            return;
-        }
-
-        Ref<Double> totalError = new Ref<>(0.0);
-        for (Map.Entry<Day, OptionTerm> entry : optionTerms.entrySet()) {
-            OptionTerm term = entry.getValue();
-            term.computeModelError(model, totalError, tolerance);
-        }
-
-        Ref<Integer> liquidity = new Ref<>(0);
-        Double granularity = computeGranularity(liquidity);
-        if (null == granularity) {
-            granularity = 100.0; // infinite
-        }
-
-        // Express error relative to spot price
-        double error = totalError.value / model.getSpot();
-
-        logger.debug("MODELFIT underlier=" + underlier.code + " day=" + today +
-                " err=" + Application.DOUBLE_DIGIT_FORMAT.format(error * 100.0) +
-                " liquidity=" + liquidity.value +
-                " granularity=" + Application.DOUBLE_DIGIT_FORMAT.format(granularity));
-        logger.debug("MODELFITCSV," + underlier.code + "," +
-                today + "," +
-                Application.DOUBLE_DIGIT_FORMAT.format(error * 100.0) + "," +
-                liquidity.value + "," +
-                Application.DOUBLE_DIGIT_FORMAT.format(granularity));
-
-        if (liquidity.value > 0) {
-            Application.getInstance().addLiquidity(underlier.code, liquidity.value, granularity, error * 100.0);
-        }
-    }
-
-    private Double computeGranularity(Ref<Integer> liquidity) {
-        OptionTerm term = findClosestTerm(Util.TRADING_DAYS_IN_MONTH);
-        if (null == term) {
-            return null;
-        }
-
-        // Find smallest distance between strikes
-        Double minIncrement = null;
-        Double prevStrike = null;
-        for (Map.Entry<Double, OptionPair> entry : term.strikes.entrySet()) {
-            Double currStrike = entry.getKey();
-
-            if (prevStrike != null) {
-                double ds = currStrike - prevStrike;
-                if ((null == minIncrement) || (ds < minIncrement)) {
-                    minIncrement = ds;
-                }
-            }
-
-            prevStrike = currStrike;
-        }
-
-        // How many such strikes
-        prevStrike = null;
-        for (Map.Entry<Double, OptionPair> entry : term.strikes.entrySet()) {
-            Double currStrike = entry.getKey();
-
-            if (prevStrike != null) {
-                double ds = currStrike - prevStrike;
-                if (Math.abs(ds - minIncrement) < Util.ZERO) {
-                    liquidity.value++;
-                }
-            }
-
-            prevStrike = currStrike;
-        }
-
-        Double spot = getMarketSpotPrice();
-        if (null == spot) {
-            return null;
-        }
-
-        PricingModel model = getPricingModel();
-        if (null == model) {
-            return null;
-        }
-
-        Double vol = model.getVolatility();
-        if (null == vol) {
-            return null;
-        }
-
-        // Convert to standard deviations
-        double mean = -vol * vol * 0.5 * term.yf;
-        double dev = vol * Math.sqrt(term.yf);
-        double ret = Math.log((spot + minIncrement) / spot);
-        double std = (ret - mean) / dev;
-        return std;
     }
 
     public TreeMap<Day, OptionTerm> getOptionTerms() {
         return optionTerms;
-    }
-
-    public Double getImpliedSpotPrice() {
-        Double spot = getMarketSpotPrice();
-        if (null == spot) {
-            return null;
-        }
-
-        OptionTerm term = null;
-        for (Map.Entry<Day, OptionTerm> entry : optionTerms.entrySet()) {
-            term = entry.getValue();
-            break;
-        }
-        if (null == term) {
-            return null;
-        }
-
-        OptionPair atmPair = term.getClosestStrike(spot);
-        if (null == atmPair) {
-            return null;
-        }
-
-        // Bounds for spot price
-        Double spotLow = Util.getParitySpotLowerBound(atmPair.call, atmPair.put);
-        Double spotHigh = Util.getParitySpotUpperBound(atmPair.call, atmPair.put);
-        if ((null == spotLow) || (null == spotHigh)) {
-            return null;
-        }
-
-        // Use the mid instead of sampled spot, otherwise it's a sampling error (wouldn't happen in a HFT setting)
-        Double impliedSpot = (spotLow + spotHigh) / 2.0;
-        double ratio = Util.ratio(spot, impliedSpot);
-        if (ratio > 1.1) {
-            // Error in data
-            return null;
-        }
-
-        return impliedSpot;
-    }
-
-    public Double getMarketSpotPrice() {
-        if (null == stock) {
-            return null;
-        }
-
-        return stock.getPrice();
     }
 
     public Double getSpotPrice() {
@@ -415,10 +286,6 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
             }
         }
         return selectedTerm;
-    }
-
-    public double getTolerance() {
-        return tolerance;
     }
 
     private void loadInterestRates() {
@@ -498,34 +365,61 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         }
     }
 
-    public double getTotalParityArbitrage() {
-        double total = 0.0;
+    public double getMaxParityArbitrageReturn() {
+        double maxRet = 0.0;
 
         PricingModel model = getPricingModel(PricingModel.Type.Implied);
         if (null == model) {
-            return total;
+            return maxRet;
         }
 
         for (OptionTerm term : optionTerms.values()) {
-            total += term.getTotalParityArbitrage(model);
+            maxRet = Math.max(maxRet, term.getMaxParityArbitrageReturn(model));
         }
 
-        return total;
+        return maxRet * 100.0;
     }
 
-    public double getTotalOptionArbitrage() {
-        double total = 0.0;
+    public double getMaxOptionArbitrageReturn() {
+        double maxRet = 0.0;
 
         PricingModel model = getPricingModel();
         if (null == model) {
-            return total;
+            return maxRet;
         }
 
         for (OptionTerm term : optionTerms.values()) {
-            total += term.getTotalOptionArbitrage(model);
+            maxRet = Math.max(maxRet, term.getMaxOptionArbitrageReturn(model));
         }
 
-        return total;
+        return maxRet * 100.0;
+    }
+
+    // Returns the amount of positive PNL expected for bid (sell at bid) respectively ask (buy at ask) given the theoretical value of the option
+    public Pair<Double, Double> getExpectedPnl(Instrument option, double tv) {
+        Double spot = getSpotPrice();
+        if (null == spot) {
+            return new Pair<>(0.0, 0.0);
+        }
+
+        // Cost of buying or shorting one share of the stock
+        double yf = Util.yearFraction(today.countTradingDays(option.getMaturity()));
+        double totalRate = getInterestRate(today) + getBorrowRate();
+        double borrowCost = spot * (Math.exp(totalRate * yf) - 1.0);
+
+        double bidPnl = -borrowCost;
+        if (option.getBidPrice() != null) {
+            // Buy at TV, sell at bid
+            bidPnl += option.getBidPrice() - tv;
+        }
+
+        double askPnl = -borrowCost;
+        if (option.getAskPrice() != null) {
+            // Buy at ask, sell at TV
+            askPnl += tv - option.getAskPrice();
+        }
+
+        return new Pair<>(Math.max(bidPnl, 0.0), Math.max(askPnl, 0.0));
     }
 
     public Double getForward(int maturity) {
