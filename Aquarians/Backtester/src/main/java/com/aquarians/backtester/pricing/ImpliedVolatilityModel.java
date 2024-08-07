@@ -1,9 +1,6 @@
 package com.aquarians.backtester.pricing;
 
-import com.aquarians.aqlib.Day;
-import com.aquarians.aqlib.Instrument;
-import com.aquarians.aqlib.OptionPair;
-import com.aquarians.aqlib.Util;
+import com.aquarians.aqlib.*;
 import com.aquarians.aqlib.models.BlackScholes;
 import com.aquarians.aqlib.models.PricingResult;
 import com.aquarians.aqlib.models.VolatilitySurface;
@@ -20,18 +17,10 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
     private VolatilitySurface surface;
     private Day today;
     private Double spotPrice;
-    private final Integer volatilityRounding;
     private int hedgeFrequency = Util.DEFAULT_HEDGE_FREQUENCY;
 
     public ImpliedVolatilityModel(PricingModule owner) {
         this.owner = owner;
-
-        String volatilityRoundingText = Application.getInstance().getProperties().getProperty("ImpliedVolatilityModel.VolatilityRounding");
-        if (volatilityRoundingText != null) {
-            volatilityRounding = Integer.parseInt(volatilityRoundingText);
-        } else {
-            volatilityRounding = null;
-        }
     }
 
     public Day getToday() {
@@ -68,6 +57,11 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
             forward = surface.getSpot();
         }
 
+        Double interest = surface.getInterest(maturity);
+        if (null == interest) {
+            interest = interestRate;
+        }
+
         if (instrument.getType().equals(Instrument.Type.STOCK)) {
             PricingResult result = new PricingResult(forward, 1.0);
             result.pnlDev = 0.0;
@@ -84,7 +78,9 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
             return result;
         }
 
-        BlackScholes pricer = new BlackScholes(instrument.isCall(), forward, instrument.getStrike(), yf, interestRate, dividendYield, vol);
+        // Use Black model where dividends are implied by the forward price
+        BlackScholes pricer = new BlackScholes(instrument.isCall(), forward, instrument.getStrike(), yf, interest, 0.0, vol);
+        pricer.setBlack(true);
         double price = pricer.price();
         double delta = pricer.analyticDelta();
         PricingResult result = new PricingResult(price, delta);
@@ -107,8 +103,7 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
         surface = new VolatilitySurface();
         surface.setSpot(spotPrice);
 
-        for (Map.Entry<Day, OptionTerm> entry : owner.getOptionTerms().entrySet()) {
-            OptionTerm term = entry.getValue();
+        for (OptionTerm term : owner.getOptionTerms().values()) {
             try {
                 computeImpliedVol(term);
             } catch (Exception ex) {
@@ -119,7 +114,6 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
 
     void computeImpliedVol(OptionTerm term) {
         double interestRate = owner.getInterestRate(today);
-
         Double forwardPrice = term.computeParityForwardPrice(interestRate);
         if (null == forwardPrice) {
             return;

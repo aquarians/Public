@@ -29,18 +29,14 @@ import com.aquarians.aqlib.math.DefaultProbabilityFitter;
 import com.aquarians.aqlib.models.BlackScholes;
 import com.aquarians.aqlib.models.PricingResult;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
 public class OptionTerm implements Comparable<OptionTerm> {
 
     private static org.apache.log4j.Logger logger =
             org.apache.log4j.Logger.getLogger(OptionTerm.class.getSimpleName());
 
-    //private static final double DEEP_OTM_DEVS = 0.75;
-    private static final double DEEP_OTM_DEVS = 20.0;
+    private static final double DEEP_OTM_DEVS = 0.75;
 
     private final PricingModule owner;
     public final Day maturity;
@@ -256,8 +252,7 @@ public class OptionTerm implements Comparable<OptionTerm> {
         List<OptionPair> pairs = new ArrayList<>(strikes.size());
 
         // Select valid pairs
-        for (Map.Entry<Double, OptionPair> entry : strikes.entrySet()) {
-            OptionPair pair = entry.getValue();
+        for (OptionPair pair : strikes.values()) {
             if (pair.hasFullSpread()) {
                 pairs.add(pair);
             }
@@ -293,7 +288,6 @@ public class OptionTerm implements Comparable<OptionTerm> {
         // Take an average of the forward price implied by the put-call parity
         DefaultProbabilityFitter forwards = new DefaultProbabilityFitter(pairs.size());
         for (OptionPair pair : pairs) {
-
             // Filter out deep out of the money strikes
             double ret = Math.log(pair.strike / forwardPair.strike);
             if (Math.abs(ret) > dev * DEEP_OTM_DEVS) {
@@ -309,6 +303,51 @@ public class OptionTerm implements Comparable<OptionTerm> {
 
         forwards.compute();
         return forwards.getMean();
+    }
+
+    // Computes lower and upper bound for forward price
+    public Pair<Double, Double> computeParityForwardPriceBounds() {
+        TreeSet<Double> lowerBounds = new TreeSet<>();
+        TreeSet<Double> upperBounds = new TreeSet<>();
+
+        // Cost of borrow
+        double borrowRate = owner.getInterestRate(owner.getToday()) + owner.getBorrowRate();
+        double borrowCost = (owner.getSpotPrice() != null) ? owner.getSpotPrice() * (Math.exp(borrowRate * yf) - 1.0) : 0.0;
+
+        for (OptionPair pair : strikes.values()) {
+            if (!pair.hasFullSpread()) {
+                continue;
+            }
+
+            Double lowerBound = Util.getParitySpotLowerBound(pair.call, pair.put);
+            if (lowerBound != null) {
+                lowerBounds.add(lowerBound - borrowCost);
+            }
+
+            Double upperBound = Util.getParitySpotUpperBound(pair.call, pair.put);
+            if (upperBound != null) {
+                upperBounds.add(upperBound + borrowCost);
+            }
+        }
+
+        Double lowerBound = lowerBounds.size() > 0 ? lowerBounds.last() : null;
+        Double upperBound = upperBounds.size() > 0 ? upperBounds.first() : null;
+        return new Pair<>(lowerBound, upperBound);
+    }
+
+    public boolean hasParityViolation() {
+        Pair<Double, Double> bounds = computeParityForwardPriceBounds();
+        Double lowerBound = bounds.getKey();
+        Double upperBound = bounds.getValue();
+
+        boolean isViolation = Util.doubleGE(lowerBound, upperBound);
+        logger.debug("PARITY Underlier " + owner.getUnderlier().code + " Day=" + owner.getToday() +
+                " Term=" + maturity +
+                " LowerBound=" + Util.format(lowerBound) +
+                " UpperBound=" + Util.format(upperBound) +
+                " Violation=" + Util.format(isViolation));
+
+        return isViolation;
     }
 
     interface OptionAccessor {
@@ -343,6 +382,8 @@ public class OptionTerm implements Comparable<OptionTerm> {
         validatePricesSecondPass();
         // Delete strikes that have no liquidity
         deleteEmptyStrikes();
+        // Check for parity violations, don't do nothing, just log
+        hasParityViolation();
     }
 
     private void deleteEmptyStrikes() {

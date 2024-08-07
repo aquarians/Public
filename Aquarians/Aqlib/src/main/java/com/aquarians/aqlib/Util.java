@@ -361,6 +361,14 @@ public class Util {
         return Math.abs(left - right) < ZERO;
     }
 
+    public static boolean doubleGE(Double left, Double right) {
+        if ((null == left) || (null == right)) {
+            return false;
+        }
+
+        return left >= right;
+    }
+
     public static String safeFormat(DecimalFormat format, Object value) {
         if (null == value) {
             return "";
@@ -527,6 +535,14 @@ public class Util {
         }
 
         return DOUBLE_DIGIT_FORMAT.format(value);
+    }
+
+    public static String format(Boolean value) {
+        if (null == value) {
+            return "null";
+        }
+
+        return value ? "true" : "false";
     }
 
     public static String cwd() {

@@ -138,6 +138,12 @@ public class Day implements Comparable<Day> {
     }
 
     @Override
+    public int hashCode() {
+        int code = year * 10000 + month * 100 + day;
+        return code;
+    }
+
+    @Override
     public boolean equals(Object other) {
         if (!(other instanceof Day)) {
             return false;

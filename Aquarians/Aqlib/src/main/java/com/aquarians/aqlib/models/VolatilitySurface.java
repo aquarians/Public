@@ -240,6 +240,33 @@ public class VolatilitySurface implements Volatility {
         strikeVols.forward = forward;
     }
 
+    public Double getInterest(int maturity) {
+        if (0 == maturities.size()) {
+            return null;
+        }
+
+        // Try exact
+        StrikeVols strikeVols = maturities.get(maturity);
+        if (null != strikeVols) {
+            return strikeVols.interest;
+        }
+
+        // Find the closest maturity
+        Integer minDistance = null;
+        for (Map.Entry<Integer, StrikeVols> entry : maturities.entrySet()) {
+            int distance = Math.abs(entry.getKey() - maturity);
+            if ((null == minDistance) || (distance < minDistance)) {
+                minDistance = distance;
+                strikeVols = entry.getValue();
+            }
+        }
+        if (strikeVols != null) {
+            return strikeVols.interest;
+        }
+
+        return null;
+    }
+
     @Override
     public Double getForward(int maturity) {
         if (0 == maturities.size()) {
@@ -252,7 +279,7 @@ public class VolatilitySurface implements Volatility {
             return strikeVols.forward;
         }
 
-        // Find closest maturity
+        // Find the closest maturity
         Integer minDistance = null;
         for (Map.Entry<Integer, StrikeVols> entry : maturities.entrySet()) {
             int distance = Math.abs(entry.getKey() - maturity);
@@ -261,11 +288,11 @@ public class VolatilitySurface implements Volatility {
                 strikeVols = entry.getValue();
             }
         }
-        if (null == strikeVols) {
-            return null;
+        if (strikeVols != null) {
+            return strikeVols.forward;
         }
 
-        return strikeVols.forward;
+        return null;
     }
 
     public void add(int maturity, VolatilitySurface.StrikeVols vols) {
