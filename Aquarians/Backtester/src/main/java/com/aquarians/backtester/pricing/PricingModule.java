@@ -51,6 +51,7 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
     private final TreeMap<Day, OptionTerm> optionTerms = new TreeMap<>();
     private PricingModel.Type activeModel;
     private final double borrowRate;
+    private final double borrowFactor;
     private final boolean validatePrices;
     private final boolean ensureFullSpread;
     private List<PricingModel> pricingModels = new ArrayList<>();
@@ -71,6 +72,7 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         validatePrices = Boolean.parseBoolean(Application.getInstance().getProperties().getProperty("Pricing.ValidatePrices", "false"));
         ensureFullSpread = Boolean.parseBoolean(Application.getInstance().getProperties().getProperty("Pricing.EnsureFullSpread", "false"));
         borrowRate = Double.parseDouble(Application.getInstance().getProperties().getProperty("Pricing.BorrowRate", "0"));
+        borrowFactor = Double.parseDouble(Application.getInstance().getProperties().getProperty("Pricing.BorrowFactor", "0"));
 
         loadInterestRates();
         createPricingModels();
@@ -404,8 +406,9 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
 
         // Cost of buying or shorting one share of the stock
         double yf = Util.yearFraction(today.countTradingDays(option.getMaturity()));
-        double totalRate = getInterestRate(today) + getBorrowRate();
-        double borrowCost = spot * (Math.exp(totalRate * yf) - 1.0);
+        double interestRate = getInterestRate(today);
+        double totalRate = interestRate + getBorrowRate();
+        double borrowCost = spot * (Math.exp(totalRate * yf) - 1.0) * borrowFactor;
 
         double bidPnl = -borrowCost;
         if (option.getBidPrice() != null) {

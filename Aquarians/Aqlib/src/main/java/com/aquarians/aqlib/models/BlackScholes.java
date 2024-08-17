@@ -71,13 +71,15 @@ public class BlackScholes {
     }
 
     public static BlackScholes copy(BlackScholes original) {
-        return new BlackScholes(original.isCall,
+        BlackScholes clone = new BlackScholes(original.isCall,
                 original.spotPrice,
                 original.strikePrice,
                 original.timeToExpiration,
                 original.interestRate,
                 original.dividendYield,
                 original.volatility);
+        clone.setBlack(original.isBlack);
+        return clone;
     }
 
     // When You Cannot Hedge Continuously - Emanuel Derman

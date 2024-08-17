@@ -135,11 +135,6 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
         for (Map.Entry<Double, OptionPair> entry : optionTerm.getStrikes().entrySet()) {
             OptionPair pair = entry.getValue();
 
-            if (optionTerm.maturity.equals(new Day("2008-Sep-19")) && pricingModule.getToday().equals(new Day("2008-Jan-24")) &&
-            Util.doubleEquals(pair.strike, 175.0)) {
-                int debug = 0;
-            }
-
             Double callValue = null;
             Double callBid = null;
             Double callAsk = null;

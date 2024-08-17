@@ -138,10 +138,11 @@ public class ValidateUnderliersJob implements Runnable {
             remaining--;
             logger.debug("Validating underlier " + underlier.code + ", remaining: " + remaining);
             try {
-                if (validate(underlier)) {
+                String error;
+                if (null == (error = validate(underlier))) {
                     logger.debug("Validated underlier: " + underlier.code);
                 } else {
-                    logger.debug("Failed underlier: " + underlier.code);
+                    logger.debug("Failed underlier: " + underlier.code + ", error: " + error);
                 }
             } catch (Exception ex) {
                 logger.warn("Validating underlier " + underlier.code, ex);
@@ -149,7 +150,7 @@ public class ValidateUnderliersJob implements Runnable {
         }
     }
 
-    boolean validate(UnderlierRecord underlier) {
+    String validate(UnderlierRecord underlier) {
         Day startDay = this.startDay;
         Day endDay = this.endDay;
 
@@ -163,15 +164,13 @@ public class ValidateUnderliersJob implements Runnable {
             }
 
             if ((null == startDay) || (null == endDay)) {
-                logger.warn("Underlier " + underlier.code + ": no data");
-                return false;
+                return "no data";
             }
         }
 
         List<StockPriceRecord> records = owner.getProcedures().stockPricesSelect.execute(underlier.id, startDay, endDay);
         if (records.size() < Util.TRADING_DAYS_IN_YEAR) {
-            logger.warn("Underlier " + underlier.code + ": not enough data");
-            return false;
+            return "not enough data";
         }
 
         int consecutiveIdenticalPrices = 0;
@@ -183,8 +182,7 @@ public class ValidateUnderliersJob implements Runnable {
 
             // Price is zero
             if (record.close < Util.ZERO) {
-                logger.warn("Underlier " + underlier.code + ", day: " + record.day + ", invalid price: " + Util.format(record.close));
-                return false;
+                return "invalid price: " + Util.format(record.close) + " on day " + record.day;
             }
 
             if (null == prevRecord) {
@@ -198,14 +196,12 @@ public class ValidateUnderliersJob implements Runnable {
                 consecutiveIdenticalPrices = 0;
             }
             if (consecutiveIdenticalPrices > Util.TRADING_DAYS_IN_WEEK) {
-                logger.warn("Underlier " + underlier.code + ", day: " + record.day + ", stale data");
-                return false;
+                return "stale data on day " + record.day;
             }
 
             // Gaps in the data
             if (prevRecord.day.countTradingDays(record.day) > Util.TRADING_DAYS_IN_WEEK) {
-                logger.warn("Underlier " + underlier.code + ", day: " + record.day + ", gaps in the data");
-                return false;
+                return "gaps in the data on day " + record.day;
             }
 
             // Jumps
@@ -215,8 +211,7 @@ public class ValidateUnderliersJob implements Runnable {
                     StockPriceRecord first = jumps.get(0);
                     StockPriceRecord last = jumps.get(jumps.size() - 1);
                     if (first.day.countTradingDays(last.day) < Util.TRADING_DAYS_IN_MONTH) {
-                        logger.warn("Underlier " + underlier.code + ", day: " + record.day + ", jumps in the data");
-                        return false;
+                        return "jumps in the data on day " + record.day;
                     }
 
                     jumps.remove(0);
@@ -224,60 +219,7 @@ public class ValidateUnderliersJob implements Runnable {
             }
         }
 
-        return true;
-    }
-
-    private void ensureCloseAndImpliedAgreement() {
-        List<UnderlierRecord> selected = new ArrayList<>(underliers.size());
-        for (UnderlierRecord underlier : underliers) {
-            try {
-                if (!hasCloseAndImpliedAgreement(underlier)) {
-                    logger.info("REJECTED: close and implied disagree: " + underlier.code);
-                    continue;
-                }
-
-                selected.add(underlier);
-            } catch (Exception ex) {
-                logger.warn(underlier.code, ex);
-            }
-        }
-
-        underliers = selected;
-    }
-
-    private boolean hasCloseAndImpliedAgreement(UnderlierRecord underlier) {
-        List<StockPriceRecord> records = owner.getProcedures().stockPricesSelect.execute(underlier.id, startDay, endDay);
-
-        DefaultProbabilityFitter fitter = new DefaultProbabilityFitter(records.size());
-        StockPriceRecord prev = null;
-        for (StockPriceRecord curr : records) {
-            if (curr.close < Util.ZERO) {
-                prev = null;
-                continue;
-            }
-
-            if (null != prev) {
-                double ret = Math.log(curr.close / prev.close);
-                fitter.addSample(ret);
-            }
-
-            prev = curr;
-        }
-        fitter.compute(true);
-
-        for (StockPriceRecord record : records) {
-            if ((null == record.implied) || (record.close < Util.ZERO)) {
-                continue;
-            }
-
-            double ret = Math.log(record.implied / record.close);
-            double std = (ret - fitter.getMean() / fitter.getDev());
-            if (Math.abs(std) > MAX_DEVS) {
-                return false;
-            }
-        }
-
-        return true;
+        return null;
     }
 
     private void identifyHolidays() {
@@ -333,15 +275,5 @@ public class ValidateUnderliersJob implements Runnable {
         }
 
         return holidays;
-    }
-
-    private void searchSplits() {
-        for (UnderlierRecord underlier : underliers) {
-            Pair<Day, Day> limits =  owner.getProcedures().stockPricesSelectMinMaxDate.execute(underlier.id);
-            Map<Day, Double> splits = owner.getProcedures().stockSplitsSelect.execute(underlier.id, limits.getKey(), limits.getValue());
-            if (splits.size() > 0) {
-                logger.debug("Splits on " + underlier.code);
-            }
-        }
     }
 }
