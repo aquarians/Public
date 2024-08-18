@@ -43,10 +43,18 @@ public class OptionsTableRow {
     private final double callAskPnl;
     private final double putBidPnl;
     private final double putAskPnl;
+    private final Double callExtrinsicValue;
+    private final Double callExtrinsicBid;
+    private final Double callExtrinsicAsk;
+    private final Double putExtrinsicValue;
+    private final Double putExtrinsicBid;
+    private final Double putExtrinsicAsk;
 
     public OptionsTableRow(Double strike, Double callValue, Double callBid, Double callAsk, Double putValue,
                            Double putBid, Double putAsk, Color backgroundColor, boolean atm, double parityPrice,
-                           double callBidPnl, double callAskPnl, double putBidPnl, double putAskPnl) {
+                           double callBidPnl, double callAskPnl, double putBidPnl, double putAskPnl,
+                           Double callExtrinsicValue, Double callExtrinsicBid, Double callExtrinsicAsk,
+                           Double putExtrinsicValue, Double putExtrinsicBid, Double putExtrinsicAsk) {
         this.strike = strike;
         this.callValue = callValue;
         this.callBid = callBid;
@@ -61,6 +69,12 @@ public class OptionsTableRow {
         this.callAskPnl = callAskPnl;
         this.putBidPnl = putBidPnl;
         this.putAskPnl = putAskPnl;
+        this.callExtrinsicValue = callExtrinsicValue;
+        this.callExtrinsicBid = callExtrinsicBid;
+        this.callExtrinsicAsk = callExtrinsicAsk;
+        this.putExtrinsicValue = putExtrinsicValue;
+        this.putExtrinsicBid = putExtrinsicBid;
+        this.putExtrinsicAsk = putExtrinsicAsk;
     }
 
     public Double getStrike() {
@@ -117,5 +131,29 @@ public class OptionsTableRow {
 
     public double getPutAskPnl() {
         return putAskPnl;
+    }
+
+    public Double getCallExtrinsicValue() {
+        return callExtrinsicValue;
+    }
+
+    public Double getPutExtrinsicValue() {
+        return putExtrinsicValue;
+    }
+
+    public Double getCallExtrinsicBid() {
+        return callExtrinsicBid;
+    }
+
+    public Double getCallExtrinsicAsk() {
+        return callExtrinsicAsk;
+    }
+
+    public Double getPutExtrinsicBid() {
+        return putExtrinsicBid;
+    }
+
+    public Double getPutExtrinsicAsk() {
+        return putExtrinsicAsk;
     }
 }

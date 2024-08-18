@@ -66,6 +66,11 @@ public abstract class AbstractPricingModel implements PricingModel {
         return today;
     }
 
+    @Override
+    public Double getForward(Day maturity) {
+        return null;
+    }
+
     public Double getVolatility() {
         return null;
     }

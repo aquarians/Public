@@ -63,9 +63,6 @@ public class StrikeColumn extends OptionsTableColumn {
 
     public Color getBackgroundColor(OptionsTableRow row) {
         if (row.isAtm()) {
-            if (row.getParityPrice() > 0.0) {
-                return OptionsFrame.PRICE_HIGHIGHT_BACKGROUND_COLOR;
-            }
             return OptionsFrame.SPOT_ROW_BACKGROUND_COLOR;
         }
 

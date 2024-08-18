@@ -30,18 +30,48 @@ public class BidColumn extends OptionsTableColumn {
 
     private final boolean isCall;
 
+    public enum Type {
+        WholeValue,
+        ExtrinsicValue
+    }
+
+    private ValueColumn.Type type = ValueColumn.Type.WholeValue;
+
     public BidColumn(boolean isCall) {
-        super((isCall ? "Call" : "Put") + " Bid");
+        super(getColumnName(isCall, ValueColumn.Type.WholeValue));
         this.isCall = isCall;
     }
 
-    public Object getValue(OptionsTableRow row) {
-        Double price = isCall ? row.getCallBid() : row.getPutBid();
-        if (null == price) {
-            return null;
+    private static String getColumnName(Boolean isCall, ValueColumn.Type type) {
+        if (type.equals(ValueColumn.Type.WholeValue)) {
+            return (isCall ? "Call" : "Put") + " Bid";
+        } else if (type.equals(ValueColumn.Type.ExtrinsicValue)) {
+            return (isCall ? "Call" : "Put") + " Ext Bid";
         }
 
-        return OptionsFrame.PRICE_FORMAT.format(price);
+        return null;
+    }
+
+    public Object getValue(OptionsTableRow row) {
+        if (type.equals(ValueColumn.Type.WholeValue)) {
+            Double price = isCall ? row.getCallBid() : row.getPutBid();
+            if (null == price) {
+                return null;
+            }
+
+            return OptionsFrame.PRICE_FORMAT.format(price);
+        }
+
+        if (type.equals(ValueColumn.Type.ExtrinsicValue)) {
+            Double price = isCall ? row.getCallExtrinsicBid() : row.getPutExtrinsicBid();
+            if (null == price) {
+                return null;
+            }
+
+            return OptionsFrame.PRICE_FORMAT.format(price);
+        }
+
+        return null;
     }
 
     public Color getBackgroundColor(OptionsTableRow row) {
@@ -55,4 +85,22 @@ public class BidColumn extends OptionsTableColumn {
         return super.getBackgroundColor(row);
     }
 
+    public void setType(ValueColumn.Type type) {
+        this.type = type;
+    }
+
+    public String getName() {
+        return getColumnName(isCall, type);
+    }
+
+    public void toggleType() {
+        switch (type) {
+            case WholeValue:
+                type = ValueColumn.Type.ExtrinsicValue;
+                break;
+            case ExtrinsicValue:
+                type = ValueColumn.Type.WholeValue;
+                break;
+        }
+    }
 }

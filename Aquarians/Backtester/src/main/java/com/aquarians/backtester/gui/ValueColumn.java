@@ -30,22 +30,70 @@ public class ValueColumn extends OptionsTableColumn {
 
     private final boolean isCall;
 
+    public enum Type {
+        WholeValue,
+        ExtrinsicValue
+    }
+
+    private Type type = Type.WholeValue;
+
     public ValueColumn(boolean isCall) {
-        super((isCall ? "Call" : "Put") + " Value");
+        super(getColumnName(isCall, Type.WholeValue));
         this.isCall = isCall;
     }
 
-    public Object getValue(OptionsTableRow row) {
-        Double value = isCall ? row.getCallValue() : row.getPutValue();
-        if (null == value) {
-            return null;
+    private static String getColumnName(Boolean isCall, Type type) {
+        if (type.equals(Type.WholeValue)) {
+            return (isCall ? "Call" : "Put") + " Value";
+        } else if (type.equals(Type.ExtrinsicValue)) {
+            return (isCall ? "Call" : "Put") + " Ext";
         }
 
-        return OptionsFrame.PRICE_FORMAT.format(value);
+        return null;
+    }
+
+    public Object getValue(OptionsTableRow row) {
+        if (type.equals(Type.WholeValue)) {
+            Double value = isCall ? row.getCallValue() : row.getPutValue();
+            if (null == value) {
+                return null;
+            }
+
+            return OptionsFrame.PRICE_FORMAT.format(value);
+        }
+
+        if (type.equals(Type.ExtrinsicValue)) {
+            Double value = isCall ? row.getCallExtrinsicValue() : row.getPutExtrinsicValue();
+            if (null == value) {
+                return null;
+            }
+
+            return OptionsFrame.PRICE_FORMAT.format(value);
+        }
+
+        return null;
     }
 
     public Color getBackgroundColor(OptionsTableRow row) {
         return OptionsFrame.VALUE_COLUMN_BACKGROUND_COLOR;
     }
 
+    public void setType(Type type) {
+        this.type = type;
+    }
+
+    public String getName() {
+        return getColumnName(isCall, type);
+    }
+
+    public void toggleType() {
+        switch (type) {
+            case WholeValue:
+                type = Type.ExtrinsicValue;
+                break;
+            case ExtrinsicValue:
+                type = Type.WholeValue;
+                break;
+        }
+    }
 }

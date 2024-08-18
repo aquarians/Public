@@ -28,6 +28,7 @@ import com.aquarians.aqlib.math.DefaultProbabilityFitter;
 import com.aquarians.aqlib.math.Distance;
 import com.aquarians.aqlib.math.Function;
 import com.aquarians.aqlib.math.PriceRecord;
+import com.sun.org.apache.xpath.internal.objects.XNull;
 
 import java.text.DecimalFormat;
 import java.util.*;
@@ -649,6 +650,19 @@ public class Util {
         }
 
         return closestValue;
+    }
+
+    public static Double extrinsicValue(Instrument option, Double value, Double forward) {
+        if ((null == forward) || (null == value)) {
+            return null;
+        }
+
+        double intrinsicValue = option.isCall() ? forward - option.getStrike() : option.getStrike() - forward;
+        if (intrinsicValue < 0.0) {
+            return value;
+        }
+
+        return value - intrinsicValue;
     }
 
 }

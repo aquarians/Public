@@ -48,6 +48,7 @@ public interface PricingModel {
     VolatilitySurface getSurface();
     Day getToday();
     Double getSpot();
+    Double getForward(Day maturity);
     Double getVolatility();
 
 }

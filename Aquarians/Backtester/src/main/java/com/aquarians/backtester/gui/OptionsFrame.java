@@ -118,13 +118,15 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
         List<OptionsTableRow> rows = new ArrayList<>(optionTerm.getStrikes().size() * 2);
         guiTerms.put(maturity, rows);
 
+        PricingModel model = pricingModule.getPricingModel();
+        Double forward = model.getForward(optionTerm.maturity);
+
         // Find the at-the-money strike
-        Double spot = pricingModule.getSpotPrice();
         Double atmStrike = null;
-        if (spot != null) {
+        if (forward != null) {
             Double minDistance = null;
             for (double strike : optionTerm.getStrikes().keySet()) {
-                double distance = Math.abs(strike - spot);
+                double distance = Math.abs(strike - forward);
                 if ((null == minDistance) || (distance < minDistance)) {
                     minDistance = distance;
                     atmStrike = strike;
@@ -140,17 +142,22 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
             Double callAsk = null;
             double callBidPnl = 0.0;
             double callAskPnl = 0.0;
+            Double callExtrinsicValue = null;
+            Double callExtrinsicBid = null;
+            Double callExtrinsicAsk = null;
             if (pair.call != null) {
-                PricingModel model = pricingModule.getPricingModel();
                 PricingResult result = model.price(pair.call);
                 if (null != result) {
                     callValue = result.price;
+                    callExtrinsicValue = Util.extrinsicValue(pair.call, callValue, forward);
                     Pair<Double, Double> pnls = pricingModule.getExpectedPnl(pair.call, result.price);
                     callBidPnl = pnls.getKey();
                     callAskPnl = pnls.getValue();
                 }
                 callBid = pair.call.getBidPrice();
                 callAsk = pair.call.getAskPrice();
+                callExtrinsicBid = Util.extrinsicValue(pair.call, callBid, forward);
+                callExtrinsicAsk = Util.extrinsicValue(pair.call, callAsk, forward);
             }
 
             Double putValue = null;
@@ -158,16 +165,22 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
             Double putAsk = null;
             double putBidPnl = 0.0;
             double putAskPnl = 0.0;
+            Double putExtrinsicValue = null;
+            Double putExtrinsicBid = null;
+            Double putExtrinsicAsk = null;
             if (pair.put != null) {
                 PricingResult result = pricingModule.getPricingModel().price(pair.put);
                 if (null != result) {
                     putValue = result.price;
+                    putExtrinsicValue = Util.extrinsicValue(pair.put, putValue, forward);
                     Pair<Double, Double> pnls = pricingModule.getExpectedPnl(pair.put, result.price);
                     putBidPnl = pnls.getKey();
                     putAskPnl = pnls.getValue();
                 }
                 putBid = pair.put.getBidPrice();
                 putAsk = pair.put.getAskPrice();
+                putExtrinsicBid = Util.extrinsicValue(pair.put, putBid, forward);
+                putExtrinsicAsk = Util.extrinsicValue(pair.put, putAsk, forward);
             }
 
             boolean atm = (null != atmStrike) && (Math.abs(atmStrike - pair.strike) < Util.ZERO);
@@ -186,12 +199,13 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
                     atm,
                     parityPrice,
                     callBidPnl, callAskPnl,
-                    putBidPnl, putAskPnl);
+                    putBidPnl, putAskPnl,
+                    callExtrinsicValue, callExtrinsicBid, callExtrinsicAsk,
+                    putExtrinsicValue, putExtrinsicBid, putExtrinsicAsk);
 
             rows.add(row);
         }
 
-        Double forward = pricingModule.getForward(optionTerm.daysToExpiry);
         forwards.put(optionTerm.maturity, forward);
     }
 
@@ -362,6 +376,18 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
             if (column instanceof StrikeColumn) {
                 StrikeColumn strikeColumn = (StrikeColumn) column;
                 strikeColumn.toggleType();
+                model.fireTableStructureChanged();
+            } else if (column instanceof ValueColumn) {
+                ValueColumn valueColumn = (ValueColumn) column;
+                valueColumn.toggleType();
+                model.fireTableStructureChanged();
+            } else if (column instanceof AskColumn) {
+                AskColumn askColumn = (AskColumn) column;
+                askColumn.toggleType();
+                model.fireTableStructureChanged();
+            } else if (column instanceof BidColumn) {
+                BidColumn bidColumn = (BidColumn) column;
+                bidColumn.toggleType();
                 model.fireTableStructureChanged();
             }
         }

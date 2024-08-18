@@ -227,4 +227,11 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
 
         return new PricingResult(pnl, 1.0);
     }
+
+    @Override
+    public Double getForward(Day maturity) {
+        int days = today.countTradingDays(maturity);
+        return surface.getForward(days);
+    }
+
 }
