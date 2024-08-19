@@ -51,10 +51,9 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
             return null;
         }
 
-        double yf = Util.yearFraction(maturity);
         Double forward = surface.getForward(maturity);
         if (null == forward) {
-            forward = surface.getSpot();
+            return null;
         }
 
         Double interest = surface.getInterest(maturity);
@@ -79,6 +78,7 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
         }
 
         // Use Black model where dividends are implied by the forward price
+        double yf = Util.yearFraction(maturity);
         BlackScholes pricer = new BlackScholes(instrument.isCall(), forward, instrument.getStrike(), yf, interest, 0.0, vol);
         pricer.setBlack(true);
         double price = pricer.price();
@@ -114,7 +114,8 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
 
     void computeImpliedVol(OptionTerm term) {
         double interestRate = owner.getInterestRate(today);
-        Double forwardPrice = term.computeParityForwardPrice(interestRate);
+        // Calculate forward doing sanity checks on its validity
+        Double forwardPrice = term.computeParityForwardPrice(interestRate, true);
         if (null == forwardPrice) {
             return;
         }
@@ -204,27 +205,7 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
             return null;
         }
 
-        // Buy call, sell put
-        Double pnlBuy = null;
-        Double ca = pair.call.getAskPrice();
-        Double pb = pair.put.getBidPrice();
-        if ((ca != null) && (pb != null)) {
-            pnlBuy = strikeVols.forward - pair.strike - ca + pb - borrow;
-        }
-
-        // Sell call, buy put
-        Double pnlSell = null;
-        Double cb = pair.call.getBidPrice();
-        Double pa = pair.put.getAskPrice();
-        if ((cb != null) && (pa != null)) {
-            pnlSell = pair.strike - strikeVols.forward + cb - pa - borrow;
-        }
-
-        double pnl = (pnlBuy != null) ? pnlBuy : 0.0;
-        if ((pnlSell != null) && (pnlSell > pnl)) {
-            pnl = pnlSell;
-        }
-
+        double pnl = pair.getParityArbitragePnl(strikeVols.forward, borrow);
         return new PricingResult(pnl, 1.0);
     }
 

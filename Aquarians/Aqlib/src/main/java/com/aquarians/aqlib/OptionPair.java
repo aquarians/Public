@@ -99,4 +99,30 @@ public class OptionPair implements Comparable<OptionPair> {
         return clone;
     }
 
+    public double getParityArbitragePnl(double forward, double borrow) {
+        // Buy call, sell put
+        Double pnlBuy = null;
+        Double ca = (call != null) ? call.getAskPrice() : null;
+        Double pb = (put != null) ? put.getBidPrice() : null;
+        if ((ca != null) && (pb != null)) {
+            pnlBuy = forward - strike - ca + pb - borrow;
+        }
+
+        // Sell call, buy put
+        Double pnlSell = null;
+        Double cb = (call != null) ? call.getBidPrice() : null;
+        Double pa = (put != null) ? put.getAskPrice() : null;
+        if ((cb != null) && (pa != null)) {
+            pnlSell = strike - forward + cb - pa - borrow;
+        }
+
+        // Calculate max of the two values
+        double pnl = (pnlBuy != null) ? pnlBuy : 0.0;
+        if ((pnlSell != null) && (pnlSell > pnl)) {
+            pnl = pnlSell;
+        }
+
+        return pnl;
+    }
+
 }

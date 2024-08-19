@@ -279,19 +279,6 @@ public class VolatilitySurface implements Volatility {
             return strikeVols.forward;
         }
 
-        // Find the closest maturity
-        Integer minDistance = null;
-        for (Map.Entry<Integer, StrikeVols> entry : maturities.entrySet()) {
-            int distance = Math.abs(entry.getKey() - maturity);
-            if ((null == minDistance) || (distance < minDistance)) {
-                minDistance = distance;
-                strikeVols = entry.getValue();
-            }
-        }
-        if (strikeVols != null) {
-            return strikeVols.forward;
-        }
-
         return null;
     }
 

@@ -53,7 +53,8 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
     private final double borrowRate;
     private final double borrowFactor;
     private final boolean validatePrices;
-    private final boolean ensureFullSpread;
+    private final boolean validateSpread;
+    private final int validateForward;
     private List<PricingModel> pricingModels = new ArrayList<>();
     private Map<String, Instrument> instruments = new TreeMap<>();
     private Map<Day, Double> interestRates = new HashMap<>();
@@ -70,7 +71,8 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         databaseModule = (DatabaseModule) Application.getInstance().getModule(Application.buildModuleName(DatabaseModule.NAME, index));
         activeModel = PricingModel.Type.valueOf(Application.getInstance().getProperties().getProperty("Pricing.ActiveModel", PricingModel.Type.Market.name()));
         validatePrices = Boolean.parseBoolean(Application.getInstance().getProperties().getProperty("Pricing.ValidatePrices", "false"));
-        ensureFullSpread = Boolean.parseBoolean(Application.getInstance().getProperties().getProperty("Pricing.EnsureFullSpread", "false"));
+        validateSpread = Boolean.parseBoolean(Application.getInstance().getProperties().getProperty("Pricing.ValidateSpread", "false"));
+        validateForward = Integer.parseInt(Application.getInstance().getProperties().getProperty("Pricing.ValidateForward", "0"));
         borrowRate = Double.parseDouble(Application.getInstance().getProperties().getProperty("Pricing.BorrowRate", "0"));
         borrowFactor = Double.parseDouble(Application.getInstance().getProperties().getProperty("Pricing.BorrowFactor", "0"));
 
@@ -182,16 +184,16 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         }
 
         validatePrices();
-        ensureFullSpread();
+        validateSpread();
     }
 
-    void ensureFullSpread() {
-        if (!ensureFullSpread) {
+    void validateSpread() {
+        if (!validateSpread) {
             return;
         }
 
         for (OptionTerm term : optionTerms.values()) {
-            term.ensureFullSpread();
+            term.validateSpread();
         }
     }
 
@@ -443,4 +445,7 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         return borrowRate;
     }
 
+    public int getValidateForward() {
+        return validateForward;
+    }
 }

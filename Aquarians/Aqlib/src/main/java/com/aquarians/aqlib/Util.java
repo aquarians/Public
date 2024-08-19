@@ -138,10 +138,6 @@ public class Util {
         return array;
     }
 
-    public static int daysToExpiry(double yearFraction) {
-        return (int) Math.round(yearFraction * Util.TRADING_DAYS_IN_YEAR);
-    }
-
     public static double yearFraction(int daysToExpiry) {
         return (0.0 + daysToExpiry) / Util.TRADING_DAYS_IN_YEAR;
     }

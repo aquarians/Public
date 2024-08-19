@@ -185,6 +185,11 @@ public class VolatilityFrame extends MdiFrame implements PricingListener {
 
             Map<Double, Double> guiVols = new TreeMap<>();
             for (Double strike : pricingTerm.getStrikes().keySet()) {
+                // Make sure the surface has the maturity
+                if (null == surface.getMaturities().get(pricingTerm.daysToExpiry)) {
+                    continue;
+                }
+
                 Double vol = surface.getVolatility(pricingTerm.daysToExpiry, strike);
                 if (null == vol) {
                     continue;

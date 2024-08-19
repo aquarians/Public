@@ -248,7 +248,7 @@ public class OptionTerm implements Comparable<OptionTerm> {
         return prev;
     }
 
-    public Double computeParityForwardPrice(double interestRate) {
+    public Double computeParityForwardPrice(double interestRate, boolean doForwardSanityCheck) {
         List<OptionPair> pairs = new ArrayList<>(strikes.size());
 
         // Select valid pairs
@@ -301,8 +301,57 @@ public class OptionTerm implements Comparable<OptionTerm> {
             forwards.addSample(impliedForward);
         }
 
+        if (forwards.size() < 1) {
+            return null;
+        }
+
         forwards.compute();
-        return forwards.getMean();
+        double forward = forwards.getMean();
+
+        // Minimum quality requirements for the forward calculation
+        if (doForwardSanityCheck && (!forwardSanityCheck(forward, interestRate))) {
+            return null;
+        }
+
+        return forward;
+    }
+
+    // Check there is no parity arbitrage around ATM
+    private boolean forwardSanityCheck(double forward, double interestRate) {
+        if (owner.getValidateForward() < 1) {
+            return true;
+        }
+
+        double totalRate = interestRate + owner.getBorrowRate();
+        double borrow = forward * (Math.exp(totalRate * yf) - 1.0);
+
+        // Order the strikes by distance from ATM
+        List<Double> orderedStrikes = new ArrayList<>(strikes.keySet());
+        Collections.sort(orderedStrikes, new DistanceFromATMComparator(forward));
+
+        for (int i = 0; i < Math.min(owner.getValidateForward(), strikes.size()); i++) {
+            Double strike = orderedStrikes.get(i);
+            OptionPair pair = strikes.get(strike);
+            double pnl = pair.getParityArbitragePnl(forward, borrow);
+            if (pnl > Util.ZERO) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static final class DistanceFromATMComparator implements Comparator<Double> {
+        private final double forward;
+
+        private DistanceFromATMComparator(double forward) {
+            this.forward = forward;
+        }
+
+        @Override
+        public int compare(Double leftStrike, Double rightStrike) {
+            return Double.compare(Math.abs(leftStrike - forward), Math.abs(rightStrike - forward));
+        }
     }
 
     // Computes lower and upper bound for forward price
@@ -504,7 +553,8 @@ public class OptionTerm implements Comparable<OptionTerm> {
     }
 
     public void validatePricesSecondPass() {
-        Double forward = computeParityForwardPrice(owner.getInterestRate(owner.getToday()));
+        // No sanity check on forward validity at this point, that's only used in pricing calculations
+        Double forward = computeParityForwardPrice(owner.getInterestRate(owner.getToday()), false);
         if (null == forward) {
             return;
         }
@@ -718,6 +768,8 @@ public class OptionTerm implements Comparable<OptionTerm> {
             }
         }
 
+        logger.debug("ParityArbitrage und=" + owner.getUnderlier().code + " day=" + owner.getToday() +
+                " mat=" + maturity + " ret=" + Util.format(maxRet * 100.0));
         return maxRet;
     }
 
@@ -764,7 +816,7 @@ public class OptionTerm implements Comparable<OptionTerm> {
         return maxRet;
     }
 
-    public void ensureFullSpread() {
+    public void validateSpread() {
         List<Double> incompleteStrikes = new ArrayList<>();
         for (OptionPair pair : strikes.values()) {
             if (!pair.hasFullSpread()) {
@@ -775,7 +827,6 @@ public class OptionTerm implements Comparable<OptionTerm> {
         for (Double strike : incompleteStrikes) {
             strikes.remove(strike);
         }
-
     }
 
 }

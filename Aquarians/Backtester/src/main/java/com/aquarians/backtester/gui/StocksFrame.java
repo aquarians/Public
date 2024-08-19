@@ -59,6 +59,7 @@ public class StocksFrame extends MdiFrame {
     private static final String CONTENT_CLOSE_FWD_DIFF = "Close-Fwd-Diff";
     private static final String CONTENT_PARITY_ARB = "Parity Arb";
     private static final String CONTENT_OPTION_ARB = "Option Arb";
+    private static final double MAX_ARBITRAGE_PERCENT = 100.0;
 
     private static final Shape CIRCLE = new Ellipse2D.Double(-3, -3, 6, 6);
     private static final Color LINE = Color.gray;
@@ -246,7 +247,7 @@ public class StocksFrame extends MdiFrame {
             List<PriceRecord> records = new ArrayList<>(stats.size());
             for (StatisticsSelect.Record stat : stats) {
                 if (stat.parity_total != null) {
-                    records.add(new PriceRecord(stat.day, stat.parity_total));
+                    records.add(new PriceRecord(stat.day, Math.min(stat.parity_total, MAX_ARBITRAGE_PERCENT)));
                 }
             }
             return records;
@@ -255,7 +256,7 @@ public class StocksFrame extends MdiFrame {
             List<PriceRecord> records = new ArrayList<>(stats.size());
             for (StatisticsSelect.Record stat : stats) {
                 if (stat.parity_total != null) {
-                    records.add(new PriceRecord(stat.day, stat.option_total));
+                    records.add(new PriceRecord(stat.day, Math.min(stat.option_total, MAX_ARBITRAGE_PERCENT)));
                 }
             }
             return records;
