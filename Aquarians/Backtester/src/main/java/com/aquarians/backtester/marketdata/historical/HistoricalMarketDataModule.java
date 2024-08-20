@@ -198,7 +198,7 @@ public class HistoricalMarketDataModule extends MarketDataModule {
             allowedTerms = new TreeSet<>();
             for (Period period : configuredTerms) {
                 Day maturity = day.add(period);
-                Day term = Util.getClosestValue(allTerms, maturity, (left, right) -> Math.abs(left.countTradingDays(right)));
+                Day term = Util.getClosestValue(allTerms, maturity, (left, right) -> Math.abs(Util.maturity(left, right)));
                 if (term != null) {
                     allowedTerms.add(term);
                 }

@@ -308,7 +308,7 @@ public class GenerateTestDataJob implements Runnable {
         }
 
         // Generate strikes around current spot
-        int remainingDays = stockRecord.day.countTradingDays(maturity);
+        int remainingDays = Util.maturity(stockRecord.day, maturity);
         if (remainingDays < 1) {
             return;
         }
@@ -368,7 +368,7 @@ public class GenerateTestDataJob implements Runnable {
     private void priceAndSaveOptions(PriceRecord stockRecord) {
         for (Map.Entry<Day, TermData> termEntry : terms.entrySet()) {
             Day maturity = termEntry.getKey();
-            int remainingDays = stockRecord.day.countTradingDays(maturity);
+            int remainingDays = Util.maturity(stockRecord.day, maturity);
             double yf = Util.yearFraction(remainingDays);
 
             TermData termData = termEntry.getValue();

@@ -48,7 +48,7 @@ public class OptionTerm implements Comparable<OptionTerm> {
     public OptionTerm(PricingModule owner, Day today, Day maturity) {
         this.owner = owner;
         this.maturity = maturity;
-        daysToExpiry = today.countTradingDays(maturity);
+        daysToExpiry = Util.maturity(today, maturity);
         yf = Util.yearFraction(daysToExpiry);
     }
 

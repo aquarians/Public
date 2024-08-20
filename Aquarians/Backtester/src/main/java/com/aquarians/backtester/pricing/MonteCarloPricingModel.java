@@ -53,7 +53,7 @@ public class MonteCarloPricingModel extends AbstractPricingModel {
             throw new RuntimeException("Unknown instrument type: " + instrument.getType().name());
         }
 
-        int days = today.countTradingDays(instrument.getMaturity());
+        int days = Util.maturity(today, instrument.getMaturity());
         double yf = Util.yearFraction(days);
         MonteCarloPricer pricer = new MonteCarloPricer(process, instrument.isCall(), spot, instrument.getStrike(), yf);
 

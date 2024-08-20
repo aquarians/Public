@@ -407,7 +407,7 @@ public class PricingModule implements ApplicationModule, MarketDataListener {
         }
 
         // Cost of buying or shorting one share of the stock
-        double yf = Util.yearFraction(today.countTradingDays(option.getMaturity()));
+        double yf = Util.yearFraction(Util.maturity(today, option.getMaturity()));
         double interestRate = getInterestRate(today);
         double totalRate = interestRate + getBorrowRate();
         double borrowCost = spot * (Math.exp(totalRate * yf) - 1.0) * borrowFactor;

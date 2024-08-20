@@ -200,7 +200,7 @@ public class ValidateUnderliersJob implements Runnable {
             }
 
             // Gaps in the data
-            if (prevRecord.day.countTradingDays(record.day) > Util.TRADING_DAYS_IN_WEEK) {
+            if (Util.maturity(prevRecord.day, record.day) > Util.TRADING_DAYS_IN_WEEK) {
                 return "gaps in the data on day " + record.day;
             }
 
@@ -210,7 +210,7 @@ public class ValidateUnderliersJob implements Runnable {
                 if (jumps.size() == Util.TRADING_DAYS_IN_WEEK) {
                     StockPriceRecord first = jumps.get(0);
                     StockPriceRecord last = jumps.get(jumps.size() - 1);
-                    if (first.day.countTradingDays(last.day) < Util.TRADING_DAYS_IN_MONTH) {
+                    if (Util.maturity(first.day, last.day) < Util.TRADING_DAYS_IN_MONTH) {
                         return "jumps in the data on day " + record.day;
                     }
 

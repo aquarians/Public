@@ -45,7 +45,7 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
             return null;
         }
 
-        int maturity = today.countTradingDays(instrument.getMaturity());
+        int maturity = Util.maturity(today, instrument.getMaturity());
         Double vol = surface.getVolatility(maturity, instrument.getStrike());
         if (null == vol) {
             return null;
@@ -184,7 +184,7 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
             return null;
         }
 
-        int maturity = today.countTradingDays(instrument.getMaturity());
+        int maturity = Util.maturity(today, instrument.getMaturity());
         VolatilitySurface.StrikeVols strikeVols = surface.getMaturities().get(maturity);
         if ((null == strikeVols) || (null == strikeVols.forward)) {
             return null;
@@ -211,8 +211,7 @@ public class ImpliedVolatilityModel extends AbstractPricingModel {
 
     @Override
     public Double getForward(Day maturity) {
-        int days = today.countTradingDays(maturity);
-        return surface.getForward(days);
+        return surface.getForward(Util.maturity(today, maturity));
     }
 
 }

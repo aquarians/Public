@@ -138,6 +138,16 @@ public class Util {
         return array;
     }
 
+    public static int maturity(Day today, Day lastTradingDay) {
+        int days = today.countTradingDays(lastTradingDay);
+        if (days < 0) {
+            return 0;
+        }
+
+        // On the last trading day we still have one day to trade
+        return days + 1;
+    }
+
     public static double yearFraction(int daysToExpiry) {
         return (0.0 + daysToExpiry) / Util.TRADING_DAYS_IN_YEAR;
     }

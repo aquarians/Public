@@ -96,7 +96,7 @@ public class NormalDistributionModel extends AbstractPricingModel {
     }
 
     public Double impliedVolatility(Instrument instrument) {
-        int days = today.countTradingDays(instrument.getMaturity());
+        int days = Util.maturity(today, instrument.getMaturity());
         double yf = Util.yearFraction(days);
         BlackScholes pricer = new BlackScholes(instrument.isCall(), spot, instrument.getStrike(), yf, 0.0, 0.0, 0.0);
         Double price = instrument.getPrice();
@@ -121,7 +121,7 @@ public class NormalDistributionModel extends AbstractPricingModel {
             return null;
         }
 
-        int days = today.countTradingDays(instrument.getMaturity());
+        int days = Util.maturity(today, instrument.getMaturity());
         double yf = Util.yearFraction(days);
         BlackScholes pricer = new BlackScholes(instrument.isCall(), spot, instrument.getStrike(), yf, 0.0, 0.0, volatility);
 

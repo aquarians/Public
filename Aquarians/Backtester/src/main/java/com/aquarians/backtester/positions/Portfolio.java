@@ -123,8 +123,8 @@ public class Portfolio {
         }
 
         // Expired?
-        int remainingDays = pricingModel.getToday().countTradingDays(strategy.maturityDay);
-        if (remainingDays < 1) {
+        int remainingDays = Util.maturity(pricingModel.getToday(), strategy.maturityDay);
+        if (remainingDays <= 1) {
             close();
             return;
         }

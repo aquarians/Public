@@ -65,8 +65,8 @@ public class NormalProcess {
         return new NormalDistribution(mean, dev);
     }
 
-    public List<PriceRecord> generatePath(Day startDay, double spot, int maturity) {
-        Day endDay = startDay.addTradingDays(maturity);
+    public List<PriceRecord> generatePath(Day startDay, double spot, int count) {
+        Day endDay = startDay.addTradingDays(count);
         int size = startDay.countCalendarDays(endDay);
         List<PriceRecord> records = new ArrayList<>(size + 1);
 

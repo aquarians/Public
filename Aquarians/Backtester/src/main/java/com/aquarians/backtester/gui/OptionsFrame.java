@@ -300,7 +300,7 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
             Day selectedMaturity = termsCombo.getItemAt(selected);
             model.selectMaturity(selectedMaturity);
             if (null != model.getDay()) {
-                int maturity = model.getDay().countTradingDays(selectedMaturity);
+                int maturity = Util.maturity(model.getDay(), selectedMaturity);
                 maturityLabel.setText(MATURITY_LABEL + maturity + " days");
             }
 
@@ -349,7 +349,7 @@ public class OptionsFrame extends MdiFrame implements PricingListener {
         Day selectedMaturity = (maturities.size() > 0) ? maturities.get(selected) : null;
         forwardLabel.setText(FORWARD_LABEL);
         if ((null != data.today) && (null != selectedMaturity)) {
-            int maturity = data.today.countTradingDays(selectedMaturity);
+            int maturity = Util.maturity(data.today, selectedMaturity);
             maturityLabel.setText(MATURITY_LABEL + maturity + " days");
             Double forward = forwards.get(selectedMaturity);
             if (forward != null) {
